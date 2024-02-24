@@ -65,7 +65,7 @@ from utils.torch_utils import select_device, smart_inference_mode
 # Modify these colors based on your preferences
 COLOR_TEAM_1 = (0, 0, 255, 255)  # Red
 COLOR_TEAM_2 = (255, 0, 0, 255)  # Yellow
-COLOR_REF = (0, 0, 0, 0)  # Blue
+COLOR_REF = (0, 255, 0, 255)  # Green
 COLOR_UN = (0, 0, 0, 0) 
 
 # Define a mapping of class combinations to colors
@@ -130,12 +130,14 @@ def calculate_histogram_and_mask(roi, lower_color, upper_color):
     return hist_combined
 
 def assign_class_from_color_histogram(img, xyxy, save_plot=True):
+# def assign_class_from_color_histogram(img, x1, y1, x2, y2, save_plot=True):
     global cnt
     global team_1
     global team_2
     global team1_color
     global team2_color
     x1, y1, x2, y2 = map(int, xyxy)
+    # x1, y1, x2, y2 = x1/2, y1/2, x2/2, y2/2
     roi = img[y1:y2, x1:x2]  # Extract region of interest (ROI)
 
     colors = {
@@ -144,7 +146,6 @@ def assign_class_from_color_histogram(img, xyxy, save_plot=True):
         'purple': ([110, 50, 30], [160, 255, 255]),
         'blue': ([100, 50, 50], [120, 255, 255]),
         'red': ([0, 50, 50], [10, 255, 255])
-        # 'white': ([0, 0, 200], [180, 50, 255])
     }
 
     hist_combined = []
@@ -156,34 +157,29 @@ def assign_class_from_color_histogram(img, xyxy, save_plot=True):
     weighted_avgs = [round(calculate_weighted_average(hist)) for hist in hist_combined]
 
     # Classify teams and refs
-    if team_1 == -1 and weighted_avgs[0] > max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 0, "yellow" # yellow
-    elif team_1 == -1 and weighted_avgs[1] > max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 1, "black" # black
-    elif team_1 == -1 and weighted_avgs[3] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_1, team1_color = 3, "blue" # blue
-    elif team_1 == -1 and weighted_avgs[4] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_1, team1_color = 4, "red" # red
+    if team_1 == -1 and weighted_avgs[0] >= max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 0, "yellow" # yellow
+    elif team_1 == -1 and weighted_avgs[1] >= max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 1, "black" # black
+    elif team_1 == -1 and weighted_avgs[3] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_1, team1_color = 3, "blue" # blue
+    elif team_1 == -1 and weighted_avgs[4] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_1, team1_color = 4, "red" # red
     # elif team_1 == -1 and weighted_avgs[5] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[2], weighted_avgs[3], weighted_avgs[4]): team_1 = 5 # white
 
-    if team_2 == -1 and (team_1 != -1 and team_1 != 0) and weighted_avgs[0] > max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 0, "yellow" # yellow
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 1) and weighted_avgs[1] > max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 1, "black" # black
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 3) and weighted_avgs[3] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_2, team2_color = 3, "blue" # blue
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 4) and weighted_avgs[4] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_2, team2_color = 4, "red" # red
+    if team_2 == -1 and (team_1 != -1 and team_1 != 0) and weighted_avgs[0] >= max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 0, "yellow" # yellow
+    elif team_2 == -1 and (team_1 != -1 and team_1 != 1) and weighted_avgs[1] >= max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 1, "black" # black
+    elif team_2 == -1 and (team_1 != -1 and team_1 != 3) and weighted_avgs[3] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_2, team2_color = 3, "blue" # blue
+    elif team_2 == -1 and (team_1 != -1 and team_1 != 4) and weighted_avgs[4] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_2, team2_color = 4, "red" # red
     # elif team_2 == -1 and (team_1 != -1 and team_1 != 5) and weighted_avgs[5] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[2], weighted_avgs[3], weighted_avgs[4]): team_2 = 5 # white
 
     # print("team_1: ", team_1)
     # print("team_2: ", team_2)
     # print(str(cnt) + "_team_1: ", weighted_avgs[team_1])
     # print(str(cnt) + "_team_2: ", weighted_avgs[team_2])
-    # print(str(cnt) + "_ref: ", weighted_avgs[2])
 
     if (team_1 != -1 and team_2 != -1):
         if weighted_avgs[team_1] > weighted_avgs[team_2]: return 'team_1' # return str(cnt) + '_team_1'
         elif weighted_avgs[team_2] > weighted_avgs[team_1]: return 'team_2'
-        # elif weighted_avgs[2] > weighted_avgs[team_1] and weighted_avgs[2] > weighted_avgs[team_2]: return 'ref'
         else: return 'unknown'
     elif (team_1 != -1 and team_2 == -1):
         return 'team_1'
-        # if weighted_avgs[team_1] > weighted_avgs[2]: return 'team_1'
-        # elif weighted_avgs[2] > weighted_avgs[team_1]: return 'ref'
-        # else: return 'unknown'
 
 def change_white(image):
     if isinstance(image, str):
@@ -247,26 +243,32 @@ def change_gray(image):
     # Return the result
     return result
 
-def track_detect(detections, img, tracker, annotator):
+def track_detect(detections_t, detections_d, img, tracker, annotator):
+
     # print("detections: ", detections)
-    tracks = tracker.update_tracks(detections, frame=img)
+    tracks = tracker.update_tracks(detections_t, frame=img)
     # print("tracks: ", len(tracks))
 
-    for track in tracks:
+    for i in range(0, len(tracks)):
+    # for track in tracks:
         # if not track.is_confirmed():
         #     print("track: ", track.to_ltrb())
         #     continue
-        track_id = track.track_id
-        ltrb = track.to_ltrb()
+        track_id = tracks[i].track_id
+        xyxy = detections_d[i]['xyxy']
+        x1, y1, x2, y2 = map(int, xyxy)
+        assigned_class = detections_d[i]['assigned_class']
+        color = detections_d[i]['color']
+        # ltrb = tracks[i].to_ltrb()
 
-        bbox = ltrb
+        # bbox = ltrb
 
-        x1, y1, x2, y2 = bbox
+        # x1, y1, x2, y2 = bbox
         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
         w, h = x2 - x1, y2 - y1
 
-        label = f'ID: {track_id}'
-        annotator.box_label((x1, y1, x2, y2), label, (0, 0, 255, 0)) # make colour invisible or get colour from assigned colors
+        label = f'{assigned_class}, ID: {track_id}'
+        annotator.box_label((x1, y1, x2, y2), label, color) # make colour invisible or get colour from assigned colors
         # cvzone.putTextRect(img, label, (x1, y1), scale = 5, thickness = 5, colorR = (0, 0, 255))
         # cvzone.cornerRect(img, (x1, y1, w, h), l = 9, rt = 1, colorR = (255, 0, 255))
 
@@ -380,6 +382,11 @@ def run(
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
 
+            # Process results
+            stored_bounding_boxes = []  # List to store bounding boxes with colors and assigned classes
+            detections_to_track = []  # List to store bounding boxes with colors and assigned classes
+            detections_to_detect = []
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
@@ -391,8 +398,9 @@ def run(
                                         embedder_wts=None, polygon=False, today=None)
 
                 # Process results
-                stored_bounding_boxes = []  # List to store bounding boxes with colors and assigned classes
-                detections_to_track = []  # List to store bounding boxes with colors and assigned classes
+                # stored_bounding_boxes = []  # List to store bounding boxes with colors and assigned classes
+                # detections_to_track = []  # List to store bounding boxes with colors and assigned classes
+                # detections_to_detect = []
 
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
@@ -406,41 +414,52 @@ def run(
                         x1, y1, x2, y2 = map(int, xyxy)
                         w, h = x2 - x1, y2 - y1
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                        # print("label: ", label)
 
                         # Assign classes "team_1", "team_2", or "ref" based on color histogram
-                        assigned_class = assign_class_from_color_histogram(im_changed, xyxy) # change im0 to im_changed
+                        if label[0] == 'R':
+                            assigned_class = 'referee'
+                            # print("assigned_class: ", assigned_class)
+                        else:
+                            assigned_class = assign_class_from_color_histogram(im_changed, xyxy) # change im0 to im_changed
 
                         cnt += 1
 
                         # Assign colour based on class
                         if assigned_class.endswith('team_1'): color = COLOR_TEAM_1
                         elif assigned_class.endswith('team_2'): color = COLOR_TEAM_2
-                        elif assigned_class.endswith('ref'): color = COLOR_REF
+                        elif assigned_class.endswith('referee'): color = COLOR_REF
                         else: color = COLOR_UN
 
-                        # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': assigned_class, 'color': color})
-                        stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': "", 'color': color})
-                        conf = 0.9
-                        detections_to_track.append((([x1, y1, w, h]), conf, assigned_class))
+                        stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': assigned_class, 'color': color})
+                        # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': label, 'color': colors_s(c, True)})
+
+                        conf_n = math.ceil(conf * 100) / 100
+                        if (conf_n > 0.5):
+                            detections_to_track.append((([x1, y1, w, h]), conf_n, label))
+                            detections_to_detect.append({'xyxy': xyxy, 'conf' : conf_n, 'assigned_class': assigned_class, 'color': color})
+                        # detections_to_track.append((([x1, y1, x2, y2]), conf, assigned_class))
+
                         # annotator.box_label(xyxy, assigned_class, color=color)
                         # annotator.box_label(xyxy, assigned_class, color=colors_s(c, True))
                     if save_crop:
-                        save_one_box(xyxy, imc, file=save_dir / 'crops' / assigned_class / f'{p.stem}.jpg', BGR=True)
+                        # save_one_box(xyxy, imc, file=save_dir / 'crops' / assigned_class / f'{p.stem}.jpg', BGR=True)
+                        save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
                 # Apply stored bounding boxes onto the image
                 for stored_bbox in stored_bounding_boxes:
                     annotator.box_label(stored_bbox['xyxy'], stored_bbox['assigned_class'], color=stored_bbox['color'])
 
-            # Stream results
-            im0 = annotator.result()
-
             annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
-            detections = detections_to_track
-            annotator_track, detect_frame = track_detect(detections, im0, tracker, annotator_track)
-            
-            im1 = annotator_track.result()
-            cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", im1)
-            print("Result saved to 'hist/track' folder.")
+            # detections = detections_to_track
+            if (len(detections_to_track) != 0):
+                annotator_track, detect_frame = track_detect(detections_to_track, detections_to_detect, im0, tracker, annotator_track)
+                
+                # Stream results
+                im0 = annotator.result()
+                im1 = annotator_track.result()
+            # cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", im1)
+            # print("Result saved to 'hist/track' folder.")
 
             # cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", detect_frame)
             # print("Result saved to 'hist/track' folder.")
