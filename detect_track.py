@@ -47,7 +47,13 @@ from ultralytics import YOLO
 import cv2
 import cvzone
 import math
-from deep_sort_realtime.deepsort_tracker import DeepSort
+# from deep_sort_realtime.deepsort_tracker import DeepSort
+from sklearn.cluster import KMeans
+from scipy.ndimage import gaussian_filter
+
+from deep_sort.utils.parser import get_config
+from deep_sort.deep_sort import DeepSort
+from deep_sort.sort.tracker import Tracker
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -68,26 +74,6 @@ COLOR_TEAM_2 = (255, 0, 0, 255)  # Yellow
 COLOR_REF = (0, 255, 0, 255)  # Green
 COLOR_UN = (0, 0, 0, 0) 
 
-# Define a mapping of class combinations to colors
-class_color_mapping = {
-    ('team_blue', 'team_red'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_yellow', 'team_red'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_yellow', 'team_black'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_yellow', 'team_white'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_black', 'team_red'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_black', 'team_white'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_red', 'team_white'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_blue', 'team_white'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_blue', 'team_yellow'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_blue', 'team_black'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_red', 'team_yellow'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_red', 'team_black'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_white', 'team_yellow'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('team_white', 'team_black'): (COLOR_TEAM_1, COLOR_TEAM_2),
-    ('_ref',): (COLOR_REF,),
-    # Add more combinations as needed
-}
-
 def colors_s(class_idx, use_rgb=False):
     # Define your color mapping based on class indices
     color_mapping = {
@@ -103,83 +89,12 @@ def colors_s(class_idx, use_rgb=False):
         return class_idx
 
 cnt = 0
-team_1 = -1
-team_2 = -1
-team1_color = ""
-team2_color = ""
 
-def calculate_weighted_average(hist_combined): 
-    return np.sum(np.arange(len(hist_combined)) * hist_combined) / np.sum(hist_combined)
-
-def calculate_histogram_and_mask(roi, lower_color, upper_color):
-    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV) # region of interest
-    
-    mask = cv2.inRange(hsv_roi, lower_color, upper_color)
-    roi_color = cv2.bitwise_and(roi, roi, mask=mask)
-    
-    hist_hue = cv2.calcHist([roi_color], [0], None, [180], [0, 180])
-    hist_saturation = cv2.calcHist([roi_color], [1], None, [256], [0, 256])
-    hist_value = cv2.calcHist([roi_color], [2], None, [256], [0, 256])
-    
-    hist_hue /= hist_hue.sum() + 1e-10
-    hist_saturation /= hist_saturation.sum() + 1e-10
-    hist_value /= hist_value.sum() + 1e-10
-    
-    hist_combined = np.concatenate((hist_hue, hist_saturation, hist_value), axis=None)
-    
-    return hist_combined
-
-def assign_class_from_color_histogram(img, xyxy, save_plot=True):
-# def assign_class_from_color_histogram(img, x1, y1, x2, y2, save_plot=True):
-    global cnt
-    global team_1
-    global team_2
-    global team1_color
-    global team2_color
-    x1, y1, x2, y2 = map(int, xyxy)
-    # x1, y1, x2, y2 = x1/2, y1/2, x2/2, y2/2
-    roi = img[y1:y2, x1:x2]  # Extract region of interest (ROI)
-
-    colors = {
-        'yellow': ([20, 100, 100], [30, 255, 255]),
-        'black': ([0, 0, 0], [180, 255, 75]),
-        'purple': ([110, 50, 30], [160, 255, 255]),
-        'blue': ([100, 50, 50], [120, 255, 255]),
-        'red': ([0, 50, 50], [10, 255, 255])
-    }
-
-    hist_combined = []
-    
-    for color_name, (lower_color, upper_color) in colors.items():
-        hist_combined.append(calculate_histogram_and_mask(roi, np.array(lower_color), np.array(upper_color)))
-
-    # Calculate the weighted averages of x-axis values based on histogram values
-    weighted_avgs = [round(calculate_weighted_average(hist)) for hist in hist_combined]
-
-    # Classify teams and refs
-    if team_1 == -1 and weighted_avgs[0] >= max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 0, "yellow" # yellow
-    elif team_1 == -1 and weighted_avgs[1] >= max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_1, team1_color = 1, "black" # black
-    elif team_1 == -1 and weighted_avgs[3] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_1, team1_color = 3, "blue" # blue
-    elif team_1 == -1 and weighted_avgs[4] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_1, team1_color = 4, "red" # red
-    # elif team_1 == -1 and weighted_avgs[5] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[2], weighted_avgs[3], weighted_avgs[4]): team_1 = 5 # white
-
-    if team_2 == -1 and (team_1 != -1 and team_1 != 0) and weighted_avgs[0] >= max(weighted_avgs[1], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 0, "yellow" # yellow
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 1) and weighted_avgs[1] >= max(weighted_avgs[0], weighted_avgs[3], weighted_avgs[4]): team_2, team2_color = 1, "black" # black
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 3) and weighted_avgs[3] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[4]): team_2, team2_color = 3, "blue" # blue
-    elif team_2 == -1 and (team_1 != -1 and team_1 != 4) and weighted_avgs[4] >= max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[3]): team_2, team2_color = 4, "red" # red
-    # elif team_2 == -1 and (team_1 != -1 and team_1 != 5) and weighted_avgs[5] > max(weighted_avgs[0], weighted_avgs[1], weighted_avgs[2], weighted_avgs[3], weighted_avgs[4]): team_2 = 5 # white
-
-    # print("team_1: ", team_1)
-    # print("team_2: ", team_2)
-    # print(str(cnt) + "_team_1: ", weighted_avgs[team_1])
-    # print(str(cnt) + "_team_2: ", weighted_avgs[team_2])
-
-    if (team_1 != -1 and team_2 != -1):
-        if weighted_avgs[team_1] > weighted_avgs[team_2]: return 'team_1' # return str(cnt) + '_team_1'
-        elif weighted_avgs[team_2] > weighted_avgs[team_1]: return 'team_2'
-        else: return 'unknown'
-    elif (team_1 != -1 and team_2 == -1):
-        return 'team_1'
+# Assuming `feature_vectors_accumulated` is a list that accumulates feature vectors over frames
+# Global variables to maintain state
+feature_vectors = []  # To accumulate feature vectors from initial detections
+kmeans_model = None  # To store the K-means model once clustering is done
+team_centers = None  # To store team centers for classification
 
 def change_white(image):
     if isinstance(image, str):
@@ -243,36 +158,57 @@ def change_gray(image):
     # Return the result
     return result
 
-def track_detect(detections_t, detections_d, img, tracker, annotator):
+def calculate_rgb_histogram(roi):
+    # Calculate the histograms for each channel
+    hist_r = cv2.calcHist([roi], [0], None, [256], [0, 256])
+    hist_g = cv2.calcHist([roi], [1], None, [256], [0, 256])
+    hist_b = cv2.calcHist([roi], [2], None, [256], [0, 256])
+    
+    # Normalize histograms
+    hist_r = cv2.normalize(hist_r, hist_r).flatten()
+    hist_g = cv2.normalize(hist_g, hist_g).flatten()
+    hist_b = cv2.normalize(hist_b, hist_b).flatten()
+    
+    return np.concatenate((hist_r, hist_g, hist_b))
 
-    # print("detections: ", detections)
-    tracks = tracker.update_tracks(detections_t, frame=img)
-    # print("tracks: ", len(tracks))
+def jersey_cutout(roi, reduce_percentage=0.5):
+    h, w, _ = roi.shape
+    center_x, center_y = w // 2, h // 2
 
-    for i in range(0, len(tracks)):
-    # for track in tracks:
-        # if not track.is_confirmed():
-        #     print("track: ", track.to_ltrb())
-        #     continue
-        track_id = tracks[i].track_id
-        xyxy = detections_d[i]['xyxy']
-        x1, y1, x2, y2 = map(int, xyxy)
-        assigned_class = detections_d[i]['assigned_class']
-        color = detections_d[i]['color']
-        # ltrb = tracks[i].to_ltrb()
+    new_w = int(w * reduce_percentage)
+    new_h = int(h * reduce_percentage)
 
-        # bbox = ltrb
+    start_x = max(center_x - new_w // 2, 0)
+    start_y = max(center_y - new_h // 2, 0)
+    end_x = start_x + new_w
+    end_y = start_y + new_h
 
-        # x1, y1, x2, y2 = bbox
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-        w, h = x2 - x1, y2 - y1
+    return roi[start_y:end_y, start_x:end_x]
 
-        label = f'{assigned_class}, ID: {track_id}'
-        annotator.box_label((x1, y1, x2, y2), label, color) # make colour invisible or get colour from assigned colors
-        # cvzone.putTextRect(img, label, (x1, y1), scale = 5, thickness = 5, colorR = (0, 0, 255))
-        # cvzone.cornerRect(img, (x1, y1, w, h), l = 9, rt = 1, colorR = (255, 0, 255))
+def apply_gaussian_blur(roi, kernel_size=(5, 5)):
+    blurred_roi = cv2.GaussianBlur(roi, kernel_size, 0)
+    return blurred_roi
 
-    return annotator, img
+def get_feature_vector(img, bbox):
+    # Assuming 'assign_class_from_color_histogram' returns a feature vector for the given bbox
+    # This function is a placeholder for whatever method you use to get the feature vector
+    # x1, y1, x2, y2 = bbox
+    x1, y1, x2, y2 = map(int, bbox)
+    roi = img[y1:y2, x1:x2]  # Extract the region of interest (ROI)
+    jersey_roi = jersey_cutout(roi)  # Focus on the jersey area
+    blurred_jersey_roi = apply_gaussian_blur(jersey_roi)  # Apply Gaussian blur to the jersey ROI
+    feature_vector = calculate_rgb_histogram(blurred_jersey_roi)  # Calculate the RGB histogram and flatten it
+    
+    return feature_vector
+
+def classify_player(feature_vector, team_centers):
+    # Find the closest cluster center and classify the player
+    distances = np.linalg.norm(team_centers - feature_vector, axis=1)
+    return np.argmin(distances)
+
+# Update DeepSORT tracker with detections
+deep_sort_weights = 'deep_sort/deep/checkpoint/ckpt.t7'
+tracker = DeepSort(model_path=deep_sort_weights, max_age=70)
 
 @smart_inference_mode()
 def run(
@@ -304,6 +240,7 @@ def run(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
+    global kmeans_model
     global cnt
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -381,26 +318,16 @@ def run(
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+            annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
 
             # Process results
-            stored_bounding_boxes = []  # List to store bounding boxes with colors and assigned classes
+            ref_bbox = []  # List to store bounding boxes with colors and assigned classes
             detections_to_track = []  # List to store bounding boxes with colors and assigned classes
-            detections_to_detect = []
+            bbox_conf = []
 
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
-
-                # Update DeepSORT tracker with detections
-                tracker = DeepSort(max_age=5, n_init=2, nms_max_overlap=1.0, max_cosine_distance=0.3,
-                                        nn_budget=None, override_track_class=None, embedder="mobilenet",
-                                        half=True, bgr=True, embedder_gpu=True, embedder_model_name=None,
-                                        embedder_wts=None, polygon=False, today=None)
-
-                # Process results
-                # stored_bounding_boxes = []  # List to store bounding boxes with colors and assigned classes
-                # detections_to_track = []  # List to store bounding boxes with colors and assigned classes
-                # detections_to_detect = []
 
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
@@ -416,28 +343,18 @@ def run(
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                         # print("label: ", label)
 
-                        # Assign classes "team_1", "team_2", or "ref" based on color histogram
                         if label[0] == 'R':
                             assigned_class = 'referee'
-                            # print("assigned_class: ", assigned_class)
+                            ref_bbox.append({'xyxy': xyxy})
                         else:
-                            assigned_class = assign_class_from_color_histogram(im_changed, xyxy) # change im0 to im_changed
-
-                        cnt += 1
-
-                        # Assign colour based on class
-                        if assigned_class.endswith('team_1'): color = COLOR_TEAM_1
-                        elif assigned_class.endswith('team_2'): color = COLOR_TEAM_2
-                        elif assigned_class.endswith('referee'): color = COLOR_REF
-                        else: color = COLOR_UN
-
-                        stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': assigned_class, 'color': color})
+                            detections_to_track.append(np.array([x1, y1, w, h]))
+                            bbox_conf.append(conf)
                         # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': label, 'color': colors_s(c, True)})
 
-                        conf_n = math.ceil(conf * 100) / 100
-                        if (conf_n > 0.5):
-                            detections_to_track.append((([x1, y1, w, h]), conf_n, label))
-                            detections_to_detect.append({'xyxy': xyxy, 'conf' : conf_n, 'assigned_class': assigned_class, 'color': color})
+                        # conf_n = math.ceil(conf * 100) / 100
+                        # if (conf_n > 0.5):
+                        #     detections_to_track.append((([x1, y1, w, h]), conf_n, label))
+                        #     detections_to_detect.append({'xyxy': xyxy, 'assigned_class': label})
                         # detections_to_track.append((([x1, y1, x2, y2]), conf, assigned_class))
 
                         # annotator.box_label(xyxy, assigned_class, color=color)
@@ -447,17 +364,52 @@ def run(
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
                 # Apply stored bounding boxes onto the image
-                for stored_bbox in stored_bounding_boxes:
-                    annotator.box_label(stored_bbox['xyxy'], stored_bbox['assigned_class'], color=stored_bbox['color'])
+                detections_to_track = np.array(detections_to_track, dtype=np.float32)
+                bbox_conf = np.array(bbox_conf, dtype=np.float32) 
+                tracks = tracker.update(detections_to_track, bbox_conf, im0)
 
-            annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
-            # detections = detections_to_track
-            if (len(detections_to_track) != 0):
-                annotator_track, detect_frame = track_detect(detections_to_track, detections_to_detect, im0, tracker, annotator_track)
-                
-                # Stream results
-                im0 = annotator.result()
-                im1 = annotator_track.result()
+                for track in tracks:
+                    track_id = track[4]
+                    x1, y1, x2, y2 = track[0], track[1], track[2], track[3]
+                    bbox = x1, y1, x2, y2
+
+                    feature_vector = get_feature_vector(im_changed, bbox)  # Extract feature vector
+                        
+                    if kmeans_model is None:
+                        feature_vectors.append(feature_vector)  # Collect feature vectors
+                        
+                        if len(feature_vectors) >= 20:  # Condition to start clustering
+                            # Convert list to array for K-means
+                            feature_vectors_array = np.array(feature_vectors)
+                            kmeans_model = KMeans(n_clusters=2, random_state=42).fit(feature_vectors_array)
+                            team_centers = kmeans_model.cluster_centers_
+                    else:
+                        assigned_class = classify_player(feature_vector, team_centers)  # Classify based on closest center
+
+                    # Assign colour based on class
+                    if assigned_class == 0: 
+                        color = COLOR_TEAM_1
+                        label = "team_1" + str(track_id)
+                    elif assigned_class == 1: 
+                        color = COLOR_TEAM_2
+                        label = "team_2" + str(track_id)
+                    else: 
+                        color = COLOR_UN
+                        label = "unknown" + str(track_id)
+
+                    annotator_track.box_label([x1, y1, x2, y2], label, color)
+
+                for stored_bbox in ref_bbox:
+                    bbox = stored_bbox['xyxy']
+                    annotator.box_label(bbox, "referee", COLOR_REF)
+
+            # im0 = annotator.result()
+            im0 = annotator_track.result()
+            # annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
+            # if (len(detections_to_track) != 0):
+            #     annotator_track, detect_frame = track_detect(detections_to_track, detections_to_detect, im0, tracker, annotator_track)
+            #     im0 = annotator_track.result()
+
             # cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", im1)
             # print("Result saved to 'hist/track' folder.")
 
