@@ -367,6 +367,8 @@ def run(
                 detections_to_track = np.array(detections_to_track, dtype=np.float32)
                 bbox_conf = np.array(bbox_conf, dtype=np.float32) 
                 tracks = tracker.update(detections_to_track, bbox_conf, im0)
+                update_interval = 20  # Interval to retrain KMeans model
+                new_data_counter = 0 
 
                 for track in tracks:
                     track_id = track[4]
@@ -374,28 +376,30 @@ def run(
                     bbox = x1, y1, x2, y2
 
                     feature_vector = get_feature_vector(im_changed, bbox)  # Extract feature vector
-                        
-                    if kmeans_model is None:
-                        feature_vectors.append(feature_vector)  # Collect feature vectors
-                        
-                        if len(feature_vectors) >= 20:  # Condition to start clustering
-                            # Convert list to array for K-means
-                            feature_vectors_array = np.array(feature_vectors)
+                    feature_vectors.append(feature_vector) 
+
+                    if len(feature_vectors) >= 20:  # Condition to start or update clustering
+                        # Convert list to array for K-means
+                        feature_vectors_array = np.array(feature_vectors)
+                        if kmeans_model is None or new_data_counter >= update_interval:
                             kmeans_model = KMeans(n_clusters=2, random_state=42).fit(feature_vectors_array)
-                            team_centers = kmeans_model.cluster_centers_
-                    else:
+                            new_data_counter = 0  # Reset counter after update
+                        team_centers = kmeans_model.cluster_centers_
+        
+                    assigned_class = None
+                    if kmeans_model is not None:
                         assigned_class = classify_player(feature_vector, team_centers)  # Classify based on closest center
 
                     # Assign colour based on class
                     if assigned_class == 0: 
                         color = COLOR_TEAM_1
-                        label = "team_1" + str(track_id)
+                        label = "team_1: " + str(track_id)
                     elif assigned_class == 1: 
                         color = COLOR_TEAM_2
-                        label = "team_2" + str(track_id)
+                        label = "team_2: " + str(track_id)
                     else: 
                         color = COLOR_UN
-                        label = "unknown" + str(track_id)
+                        label = "unknown: " + str(track_id)
 
                     annotator_track.box_label([x1, y1, x2, y2], label, color)
 
