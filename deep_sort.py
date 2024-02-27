@@ -22,9 +22,6 @@ class DeepSort(object):
             "cosine", max_cosine_distance, nn_budget)
         self.tracker = Tracker(
             metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
-        
-        self.active_track_ids = set()
-        self.available_track_ids = set(range(16))  # IDs from 0 to 15
 
     def update(self, bbox_xywh, confidences, ori_img):
     # def update(self, bbox_xywh, ori_img):
@@ -44,17 +41,33 @@ class DeepSort(object):
         self.tracker.predict()
         self.tracker.update(detections)
 
-        current_track_ids = set()
         # output bbox identities
         outputs = []
+        
+        available_track_ids = set(range(16))  # IDs from 0 to 15
+
+        # Pre-update loop to adjust available_track_ids based on current tracks
+        for track in self.tracker.tracks:
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue
+            id = track.track_id
+
+            if id >= 0 and id <= 15:
+                if id in available_track_ids:
+                    available_track_ids.remove(id)
+
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             box = track.to_tlwh()
             x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id % 16 
-            #outputs.append(np.array([x1, y1, x2, y2, track_id], dtype=np.int))
-            outputs.append(np.array([x1, y1, x2, y2, track_id], dtype=int))
+            id = track.track_id
+
+            if id < 0 or id > 15:
+                if available_track_ids:
+                    id = available_track_ids.pop()
+
+            outputs.append(np.array([x1, y1, x2, y2, id], dtype=int))
 
         if len(outputs) > 0:
             outputs = np.stack(outputs, axis=0)
