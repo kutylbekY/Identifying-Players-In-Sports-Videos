@@ -41,6 +41,7 @@ import torch
 import pytesseract
 from PIL import Image, ImageDraw
 import re
+import pickle
 
 from typing import Any
 from ultralytics import YOLO
@@ -72,6 +73,7 @@ from utils.torch_utils import select_device, smart_inference_mode
 COLOR_TEAM_1 = (0, 0, 255, 255)  # Red
 COLOR_TEAM_2 = (255, 0, 0, 255)  # Yellow
 COLOR_REF = (0, 255, 0, 255)  # Green
+COLOR_POINTS = (255, 165, 0, 255)  # Orange
 COLOR_UN = (0, 0, 0, 0) 
 
 def colors_s(class_idx, use_rgb=False):
@@ -95,6 +97,23 @@ cnt = 0
 feature_vectors = []  # To accumulate feature vectors from initial detections
 kmeans_model = None  # To store the K-means model once clustering is done
 team_centers = None  # To store team centers for classification
+homography_matrices = {}
+
+# Define the corresponding coordinates on the 2D field
+field_points = [
+    (53, 60), (53, 169), (53, 187), (53, 224), (53, 242),
+    (587, 60), (587, 169), (587, 187), (587, 224), (587, 242),
+    (216, 52), (424, 52), (320, 52), (231, 129), (231, 283),
+    (409, 129), (409, 283), (124, 129), (124, 283), (516, 129), (516, 283)
+]
+
+# Define a dictionary to map labels to 2D field coordinates
+label_to_field = {
+    "TLP": (53, 60), "TLI": (53, 169), "TLG": (53, 187), "BLG": (53, 224), "BLI": (53, 242),
+    "TRP": (587, 60), "TRI": (587, 169), "TRG": (587, 187), "BRG": (587, 224), "BRI": (587, 242),
+    "TLMP": (216, 52), "TRMP": (424, 52), "MP": (320, 52), "TLMC": (231, 129), "BLMC": (231, 283), "TRMC": (409, 129), "BRMC": (409, 283),
+    "TLC": (124, 129), "BLC": (124, 283), "TRC": (516, 129), "BRC": (516, 283)
+}
 
 def change_white(image):
     if isinstance(image, str):
@@ -206,6 +225,16 @@ def classify_player(feature_vector, team_centers):
     distances = np.linalg.norm(team_centers - feature_vector, axis=1)
     return np.argmin(distances)
 
+# Function to transform points using the homography matrix
+def apply_homography(H, points):
+    # Convert points to homogeneous coordinates
+    points_homogeneous = np.hstack([points, np.ones((points.shape[0], 1))])
+    # Apply the homography matrix
+    points_transformed = np.dot(H, points_homogeneous.T).T
+    # Convert back from homogeneous to 2D coordinates
+    points_transformed = points_transformed[:, :2] / points_transformed[:, 2:]
+    return points_transformed
+
 # Update DeepSORT tracker with detections
 deep_sort_weights = 'deep_sort/deep/checkpoint/ckpt.t7'
 tracker = DeepSort(model_path=deep_sort_weights, max_age=70)
@@ -260,6 +289,18 @@ def run(
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
     imgsz = check_img_size(imgsz, s=stride)  # check image size
+
+    # check if need to store homography matrix or not
+
+    # Extract the filename from the path
+    filename = os.path.basename(weights[0])
+    # Now, assuming the version part is always formatted as "_v<number>.pt" and you want "v<number>.pt":
+    version_part = filename.split('_')[-1]
+
+    if (version_part == "v2.pt"):
+        # Load the homography_matrices dictionary from the file
+        with open('homography_matrices.pkl', 'rb') as f:
+            loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
     bs = 1  # batch_size
@@ -320,10 +361,21 @@ def run(
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
             annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
 
+            # Load the 2D field image
+            field_image_path = 'inputs/2d_field.png'  # Replace with the path to your image
+            field_image = cv2.imread(field_image_path)
+            if field_image is None:
+                raise ValueError(f"Image not found at the path: {field_image_path}")
+
             # Process results
             ref_bbox = []  # List to store bounding boxes with colors and assigned classes
             detections_to_track = []  # List to store bounding boxes with colors and assigned classes
             bbox_conf = []
+            points = []
+
+            # Define the coordinates in the video frame (to be filled with actual detection data)
+            frame_points = []  # List of tuples (x, y) of detected points in the video frame
+            field_points = [] 
 
             if len(det):
                 # Rescale boxes from img_size to im0 size
@@ -346,9 +398,11 @@ def run(
                         if label[0] == 'R':
                             assigned_class = 'referee'
                             ref_bbox.append({'xyxy': xyxy})
-                        else:
+                        elif label[0] == 'p':
                             detections_to_track.append(np.array([x1, y1, w, h]))
                             bbox_conf.append(conf)
+                        else:
+                            points.append({'xyxy': xyxy, 'label': label})
                         # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': label, 'color': colors_s(c, True)})
 
                         # conf_n = math.ceil(conf * 100) / 100
@@ -364,61 +418,106 @@ def run(
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
                 # Apply stored bounding boxes onto the image
-                detections_to_track = np.array(detections_to_track, dtype=np.float32)
-                bbox_conf = np.array(bbox_conf, dtype=np.float32) 
-                tracks = tracker.update(detections_to_track, bbox_conf, im0)
-                update_interval = 20  # Interval to retrain KMeans model
-                new_data_counter = 0 
+                if (len(points) >= 4):
+                    for stored_bbox in points:
+                        bbox = stored_bbox['xyxy']
+                        label = stored_bbox['label']
+                        label_point = label[:-5]
+                        # Get the center of the bbox
+                        frame_points.append(((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2))     
 
-                for track in tracks:
-                    track_id = track[4]
-                    x1, y1, x2, y2 = track[0], track[1], track[2], track[3]
-                    bbox = x1, y1, x2, y2
+                        if label_point in label_to_field:
+                            field_point = label_to_field[label_point]
+                            field_points.append(field_point)
+                        else:
+                            print(f"Label {label_point} not found in label_to_field mapping.")
 
-                    feature_vector = get_feature_vector(im_changed, bbox)  # Extract feature vector
-                    feature_vectors.append(feature_vector) 
+                        annotator.box_label(bbox, label, COLOR_POINTS) # Delete after finished implementing 
+                    
+                    # Convert lists to numpy arrays for OpenCV functions
+                    frame_points = np.array(frame_points, dtype='float32')
+                    field_points= np.array(field_points, dtype='float32')
 
-                    if len(feature_vectors) >= 20:  # Condition to start or update clustering
-                        # Convert list to array for K-means
-                        feature_vectors_array = np.array(feature_vectors)
-                        if kmeans_model is None or new_data_counter >= update_interval:
-                            kmeans_model = KMeans(n_clusters=2, random_state=42).fit(feature_vectors_array)
-                            new_data_counter = 0  # Reset counter after update
-                        team_centers = kmeans_model.cluster_centers_
-        
-                    assigned_class = None
-                    if kmeans_model is not None:
-                        assigned_class = classify_player(feature_vector, team_centers)  # Classify based on closest center
+                    # Calculate the Homography matrix
+                    H, status = cv2.findHomography(frame_points, field_points)
+                    if H is not None:
+                        homography_matrices[seen] = H
 
-                    # Assign colour based on class
-                    if assigned_class == 0: 
-                        color = COLOR_TEAM_1
-                        label = "team_1: " + str(track_id)
-                    elif assigned_class == 1: 
-                        color = COLOR_TEAM_2
-                        label = "team_2: " + str(track_id)
-                    else: 
-                        color = COLOR_UN
-                        label = "unknown: " + str(track_id)
+                if (len(detections_to_track) != 0):
+                    detections_to_track = np.array(detections_to_track, dtype=np.float32)
+                    bbox_conf = np.array(bbox_conf, dtype=np.float32) 
+                    tracks = tracker.update(detections_to_track, bbox_conf, im0)
+                    update_interval = 20  # Interval to retrain KMeans model
+                    new_data_counter = 0 
 
-                    annotator_track.box_label([x1, y1, x2, y2], label, color)
+                    for track in tracks:
+                        track_id = track[4]
+                        x1, y1, x2, y2 = track[0], track[1], track[2], track[3]
+                        bbox = x1, y1, x2, y2
 
-                for stored_bbox in ref_bbox:
-                    bbox = stored_bbox['xyxy']
-                    annotator.box_label(bbox, "referee", COLOR_REF)
+                        feature_vector = get_feature_vector(im_changed, bbox)  # Extract feature vector
+                        feature_vectors.append(feature_vector) 
 
-            # im0 = annotator.result()
-            im0 = annotator_track.result()
-            # annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
-            # if (len(detections_to_track) != 0):
-            #     annotator_track, detect_frame = track_detect(detections_to_track, detections_to_detect, im0, tracker, annotator_track)
-            #     im0 = annotator_track.result()
+                        if len(feature_vectors) >= 20:  # Condition to start or update clustering
+                            # Convert list to array for K-means
+                            feature_vectors_array = np.array(feature_vectors)
+                            if kmeans_model is None or new_data_counter >= update_interval:
+                                kmeans_model = KMeans(n_clusters=2, random_state=42).fit(feature_vectors_array)
+                                new_data_counter = 0  # Reset counter after update
+                            team_centers = kmeans_model.cluster_centers_
+            
+                        assigned_class = None
+                        if kmeans_model is not None:
+                            assigned_class = classify_player(feature_vector, team_centers)  # Classify based on closest center
 
-            # cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", im1)
-            # print("Result saved to 'hist/track' folder.")
+                        # Assign colour based on class
+                        if assigned_class == 0: 
+                            color = COLOR_TEAM_1
+                            label = "team_1: " + str(track_id)
+                        elif assigned_class == 1: 
+                            color = COLOR_TEAM_2
+                            label = "team_2: " + str(track_id)
+                        else: 
+                            color = COLOR_UN
+                            label = "unknown: " + str(track_id)
 
-            # cv2.imwrite("hist/track/track_" + str(cnt) + ".jpg", detect_frame)
-            # print("Result saved to 'hist/track' folder.")
+                        annotator_track.box_label([x1, y1, x2, y2], label, color)
+
+                        H = loaded_homography_matrices.get(seen)
+
+                        if (H is not None):
+                            # Get the center of the bounding box
+                            bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
+                            # Map the center point onto the 2D field using the homography matrix
+                            field_point = apply_homography(H, bbox_center)[0]
+                            
+                            # Draw the point on the field image
+                            field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
+                            cv2.circle(field_image, field_point, radius=5, color=color, thickness=-1)  # -1 fills the circle
+
+                
+                if (len(ref_bbox) != 0):
+                    for stored_bbox in ref_bbox:
+                        bbox = stored_bbox['xyxy']
+                        annotator.box_label(bbox, "referee", COLOR_REF)
+
+                        x1, y1, x2, y2 = stored_bbox['xyxy']
+
+                        # Map the center point onto the 2D field using the homography matrix
+                        H = loaded_homography_matrices.get(seen)
+                        if (H is not None):
+                            # Get the center of the bounding box
+                            bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
+                            field_point = apply_homography(H, bbox_center)[0]
+                            
+                            # Draw the point on the field image
+                            field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
+                            cv2.circle(field_image, field_point, radius=5, color=COLOR_REF, thickness=-1)  # -1 fills the circle
+
+            # cv2.imwrite(f'saved_images/2d_view_frames/frame_{seen}.png', field_image)  # Save the image
+            im0 = annotator.result()
+            # cv2.imwrite(f'saved_images/player_frames/frame_{seen}.png', im0)  # Save the image
+            # im0 = annotator_track.result()
 
             if view_img:
                 if platform.system() == 'Linux' and p not in windows:
@@ -430,6 +529,11 @@ def run(
 
             # Save results (image with detections)
             if save_img:
+                # Calculate padding to add to the shorter image (empty space)
+                field_image = cv2.resize(field_image, None, fx=2.6, fy=2.6, interpolation=cv2.INTER_LINEAR)
+
+                h1, w1 = im0.shape[:2]
+                h2, w2 = field_image.shape[:2]
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
                 else:  # 'video' or 'stream'
@@ -439,16 +543,35 @@ def run(
                             vid_writer[i].release()  # release previous video writer
                         if vid_cap:  # video
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            # w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            # h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH)) + w2  # Adjust width to include field_image
+                            h = max(h1, h2)  # Use the taller height
                         else:  # stream
-                            fps, w, h = 30, im0.shape[1], im0.shape[0]
+                            # fps, w, h = 30, im0.shape[1], im0.shape[0]
+                            fps, w, h = 30, w1 + w2, max(h1, h2)
                         save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                    vid_writer[i].write(im0)
+
+                    # Prepare combined image for each frame before writing to the video
+                    if h1 > h2:  # If im0 is taller
+                        padding = np.zeros((h1 - h2, w2, 3), dtype=np.uint8)
+                        field_image_padded = np.vstack((field_image, padding))
+                        combined_image = np.hstack((im0, field_image_padded))
+                    else:  # If field_image is taller or they are the same height
+                        padding = np.zeros((h2 - h1, w1, 3), dtype=np.uint8)
+                        im0_padded = np.vstack((im0, padding))
+                        combined_image = np.hstack((im0_padded, field_image))
+                    vid_writer[i].write(combined_image)
+                    # vid_writer[i].write(im0)
 
         # Print time (inference-only)
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
+
+    # Save the homography_matrices dictionary to a file
+    if (version_part == "v3.pt"):
+        with open('homography_matrices.pkl', 'wb') as f:
+            pickle.dump(homography_matrices, f)
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
