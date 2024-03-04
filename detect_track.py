@@ -75,6 +75,8 @@ COLOR_TEAM_2 = (255, 0, 0, 255)  # Yellow
 COLOR_REF = (0, 255, 0, 255)  # Green
 COLOR_POINTS = (255, 165, 0, 255)  # Orange
 COLOR_UN = (0, 0, 0, 0) 
+COLOR_WHITE = (255, 255, 255, 255)  # White
+COLOR_BLACK = (0, 0, 0, 255)    # Black
 
 def colors_s(class_idx, use_rgb=False):
     # Define your color mapping based on class indices
@@ -106,6 +108,13 @@ field_points = [
     (216, 52), (424, 52), (320, 52), (231, 129), (231, 283),
     (409, 129), (409, 283), (124, 129), (124, 283), (516, 129), (516, 283)
 ]
+
+point_names = {
+                "TLP": 0, "TLI": 0, "TLG": 0, "BLG": 0, "BLI": 0,
+                "TRP": 0, "TRI": 0, "TRG": 0, "BRG": 0, "BRI": 0,
+                "TLMP": 0, "TRMP": 0, "MP": 0, "TLMC": 0, "BLMC": 0, "TRMC": 0, "BRMC": 0,
+                "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0
+}
 
 # Define a dictionary to map labels to 2D field coordinates
 label_to_field = {
@@ -299,7 +308,7 @@ def run(
 
     if (version_part == "v2.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('homography_matrices.pkl', 'rb') as f:
+        with open('homography_matrices_3.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
@@ -371,11 +380,14 @@ def run(
             ref_bbox = []  # List to store bounding boxes with colors and assigned classes
             detections_to_track = []  # List to store bounding boxes with colors and assigned classes
             bbox_conf = []
-            points = []
 
             # Define the coordinates in the video frame (to be filled with actual detection data)
             frame_points = []  # List of tuples (x, y) of detected points in the video frame
             field_points = [] 
+
+            points_dict  = {}
+            count_R = 0
+            count_L = 0
 
             if len(det):
                 # Rescale boxes from img_size to im0 size
@@ -402,7 +414,22 @@ def run(
                             detections_to_track.append(np.array([x1, y1, w, h]))
                             bbox_conf.append(conf)
                         else:
-                            points.append({'xyxy': xyxy, 'label': label})
+                            point = label[:-5]
+                            if point in points_dict:
+                                # If the label already exists, compare confidence values
+                                existing_conf = float(points_dict[point]['label'].split()[-1])
+                                new_conf = float(label.split()[-1])
+                                if new_conf > existing_conf:
+                                    # Update the dictionary with the detection of higher confidence
+                                    points_dict[point] = {'xyxy': xyxy, 'label': label}
+                            else:
+                                # If the label does not exist, add it to the dictionary
+                                if len(point) == 3:  # Check if the label has 3 letters
+                                    if label[1] == 'R':
+                                        count_R += 1
+                                    elif label[1] == 'L':
+                                        count_L += 1
+                                points_dict[point] = {'xyxy': xyxy, 'label': label}
                         # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': label, 'color': colors_s(c, True)})
 
                         # conf_n = math.ceil(conf * 100) / 100
@@ -416,6 +443,31 @@ def run(
                     if save_crop:
                         # save_one_box(xyxy, imc, file=save_dir / 'crops' / assigned_class / f'{p.stem}.jpg', BGR=True)
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+                
+                dominant_letter = 'R' if count_R > count_L else 'L'
+                updated_points = {}
+
+                # Adjust labels in points_dict
+                for key, value in points_dict.items():
+                    label, conf_str = value['label'].rsplit(' ', 1)
+                    conf = float(conf_str)
+                    if (len(label) == 3):  # Check if the label has 3 letters
+                        # Replace the second letter with the dominant letter
+                        new_label = label[0] + dominant_letter + label[2]
+                        new_label_conf = new_label + ' ' + conf_str
+
+                        if (new_label in points_dict) and label[1] != dominant_letter:
+                            # If the label already exists, compare confidence values
+                            existing_conf = float(points_dict[new_label]['label'].split()[-1])
+                            if conf > existing_conf:
+                                # Update the dictionary with the detection of higher confidence
+                                updated_points[new_label] = {'xyxy': value['xyxy'], 'label': new_label_conf}
+                        else:
+                            updated_points[new_label] = {'xyxy': value['xyxy'], 'label': new_label_conf}
+                    else:
+                        updated_points[label] = {'xyxy': value['xyxy'], 'label': value['label']}
+
+                points = list(updated_points.values())
 
                 # Apply stored bounding boxes onto the image
                 if (len(points) >= 4):
@@ -495,6 +547,17 @@ def run(
                             field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
                             cv2.circle(field_image, field_point, radius=5, color=color, thickness=-1)  # -1 fills the circle
 
+                            # Add track_id at the center of the circle
+                            # Define font scale and thickness
+                            font_scale = 0.3
+                            thickness = 1
+                            text = str(track_id)  # Convert track_id to string
+                            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
+                            text_x = field_point[0] - text_size[0] // 2
+                            text_y = field_point[1] + text_size[1] // 2
+                            cv2.putText(field_image, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 
+                                        font_scale, COLOR_WHITE, thickness)
+
                 
                 if (len(ref_bbox) != 0):
                     for stored_bbox in ref_bbox:
@@ -570,7 +633,7 @@ def run(
 
     # Save the homography_matrices dictionary to a file
     if (version_part == "v3.pt"):
-        with open('homography_matrices.pkl', 'wb') as f:
+        with open('homography_matrices_3.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
     # Print results
