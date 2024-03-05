@@ -116,6 +116,12 @@ point_names = {
                 "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0
 }
 
+# Define boundary coordinates
+top_boundary = (320, 60)
+bottom_boundary = (320, 355)
+right_boundary = (620, 202)
+left_boundary = (20, 202)
+
 # Define a dictionary to map labels to 2D field coordinates
 label_to_field = {
     "TLP": (53, 60), "TLI": (53, 169), "TLG": (53, 187), "BLG": (53, 224), "BLI": (53, 242),
@@ -155,6 +161,7 @@ def change_white(image):
 
     # Make the ice field completely green (adjust the color if needed)
     result[mask == 0] = [0, 255, 0]
+    # result[mask == 0] = [255, 255, 255]
 
     # Return the result
     return result
@@ -308,7 +315,7 @@ def run(
 
     if (version_part == "v2.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('homography_matrices_3.pkl', 'rb') as f:
+        with open('homography_matrices_4.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
@@ -451,7 +458,7 @@ def run(
                 for key, value in points_dict.items():
                     label, conf_str = value['label'].rsplit(' ', 1)
                     conf = float(conf_str)
-                    if (len(label) == 3):  # Check if the label has 3 letters
+                    if (len(label) == 3 and count_R != 0 and count_L != 0):  # Check if the label has 3 letters
                         # Replace the second letter with the dominant letter
                         new_label = label[0] + dominant_letter + label[2]
                         new_label_conf = new_label + ' ' + conf_str
@@ -542,6 +549,12 @@ def run(
                             bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
                             # Map the center point onto the 2D field using the homography matrix
                             field_point = apply_homography(H, bbox_center)[0]
+
+                            x, y = field_point  # Mapped point
+                            # Adjust for boundaries
+                            x = max(left_boundary[0], min(x, right_boundary[0]))  # Between Left and Right
+                            y = max(top_boundary[1], min(y, bottom_boundary[1]))  # Between Top and Bottom
+                            field_point = (int(x), int(y))
                             
                             # Draw the point on the field image
                             field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
@@ -572,6 +585,12 @@ def run(
                             # Get the center of the bounding box
                             bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
                             field_point = apply_homography(H, bbox_center)[0]
+
+                            x, y = field_point  # Mapped point
+                            # Adjust for boundaries
+                            x = max(left_boundary[0], min(x, right_boundary[0]))  # Between Left and Right
+                            y = max(top_boundary[1], min(y, bottom_boundary[1]))  # Between Top and Bottom
+                            field_point = (int(x), int(y))
                             
                             # Draw the point on the field image
                             field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
@@ -632,8 +651,8 @@ def run(
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
     # Save the homography_matrices dictionary to a file
-    if (version_part == "v3.pt"):
-        with open('homography_matrices_3.pkl', 'wb') as f:
+    if (version_part == "v4.pt"):
+        with open('homography_matrices_4.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
     # Print results
