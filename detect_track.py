@@ -49,7 +49,7 @@ import cv2
 import cvzone
 import math
 # from deep_sort_realtime.deepsort_tracker import DeepSort
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth
 from scipy.ndimage import gaussian_filter
 
 from deep_sort.utils.parser import get_config
@@ -122,6 +122,19 @@ bottom_boundary = (320, 355)
 right_boundary = (620, 202)
 left_boundary = (20, 202)
 
+ # Load the 2D field image
+field_image_path = 'inputs/2d_field.png'  # Replace with the path to your image
+heatmap_image = cv2.imread(field_image_path)
+if heatmap_image is None:
+    raise ValueError(f"Image not found at the path: {field_image_path}")
+
+# Assuming 'field_image' is the ice hockey field image you mentioned
+height, width, _ = heatmap_image.shape
+
+# Initialize empty heatmaps for each team
+heatmap_team_1 = np.zeros((height, width), dtype=np.float32)
+heatmap_team_2 = np.zeros((height, width), dtype=np.float32)
+
 # Define a dictionary to map labels to 2D field coordinates
 label_to_field = {
     "TLP": (53, 60), "TLI": (53, 169), "TLG": (53, 187), "BLG": (53, 224), "BLI": (53, 242),
@@ -193,6 +206,82 @@ def change_gray(image):
     # Return the result
     return result
 
+# Check corner boundries
+########################################################################################################################################
+def is_left_of_diagonal(p, tl, br):
+    return (p[0] - tl[0]) * (br[1] - tl[1]) - (p[1] - tl[1]) * (br[0] - tl[0]) < 0
+
+def is_right_of_diagonal(p, tl, br):
+    return (p[0] - tl[0]) * (br[1] - tl[1]) - (p[1] - tl[1]) * (br[0] - tl[0]) > 0
+
+def is_point_inside_square_2(p, t, b):
+    return t[0] <= p[0] <= b[0] and t[1] <= p[1] <= b[1]
+
+def is_point_inside_square(p, t, b):
+    return b[0] <= p[0] <= t[0] and t[1] <= p[1] <= b[1]
+
+def mirror_across_diagonal(p, tl, br):
+    # Vector from tl to br
+    diagonal_vec = np.array([br[0] - tl[0], br[1] - tl[1]])
+    # Vector from tl to p
+    tl_to_p_vec = np.array([p[0] - tl[0], p[1] - tl[1]])
+    
+    # Project tl_to_p_vec onto diagonal_vec
+    proj_length = np.dot(tl_to_p_vec, diagonal_vec) / np.linalg.norm(diagonal_vec)
+    proj_vec = proj_length * diagonal_vec / np.linalg.norm(diagonal_vec)
+    
+    # Calculate the perpendicular vector from p to the diagonal
+    perp_vec = tl_to_p_vec - proj_vec
+    
+    # Mirrored point is p minus 2 times the perpendicular vector
+    mirrored_p = p - 2 * perp_vec
+    
+    return mirrored_p.astype(int)
+
+def adjust_point_based_on_corner(field_point):
+    # Top Left Corner
+    tr_top_left = np.array([73, 51])
+    bl_top_left = np.array([11, 114])
+
+    # Bottom Left
+    tl_point = np.array([11, 302])
+    br_point = np.array([73, 360])
+
+    # Top Right Corner
+    tl_top_right = np.array([565, 51])
+    br_top_right = np.array([629, 114])
+
+    # Bottom Right Corner
+    tr_bottom_right = np.array([629, 302])
+    bl_bottom_right = np.array([565, 360])
+
+    # if is_left_of_diagonal(field_point, tr_top_left, bl_top_left):
+    #     field_point = mirror_across_diagonal(field_point, tr_top_left, bl_top_left)
+    #     changed = True
+    # elif is_left_of_diagonal(field_point, tl_point, br_point):
+    #     field_point = mirror_across_diagonal(field_point, tl_point, br_point)
+    #     changed = True
+    # elif is_right_of_diagonal(field_point, tl_top_right, br_top_right):
+    #     field_point = mirror_across_diagonal(field_point, tl_top_right, br_top_right)
+    #     changed = True
+    # elif is_right_of_diagonal(field_point, tr_bottom_right, bl_bottom_right):
+    #     field_point = mirror_across_diagonal(field_point, tr_bottom_right, bl_bottom_right)
+    #     changed = True
+
+    if is_point_inside_square(field_point, tr_top_left, bl_top_left) and is_left_of_diagonal(field_point, tr_top_left, bl_top_left):
+        field_point = mirror_across_diagonal(field_point, tr_top_left, bl_top_left)
+    elif is_point_inside_square_2(field_point, tl_point, br_point) and is_left_of_diagonal(field_point, tl_point, br_point):
+        field_point = mirror_across_diagonal(field_point, tl_point, br_point)
+    elif is_point_inside_square_2(field_point, tl_top_right, br_top_right) and is_right_of_diagonal(field_point, tl_top_right, br_top_right):
+        field_point = mirror_across_diagonal(field_point, tl_top_right, br_top_right)
+    elif is_point_inside_square(field_point, tr_bottom_right, bl_bottom_right) and is_right_of_diagonal(field_point, tr_bottom_right, bl_bottom_right):
+        field_point = mirror_across_diagonal(field_point, tr_bottom_right, bl_bottom_right)
+
+    return field_point
+########################################################################################################################################
+
+# Team classification
+########################################################################################################################################
 def calculate_rgb_histogram(roi):
     # Calculate the histograms for each channel
     hist_r = cv2.calcHist([roi], [0], None, [256], [0, 256])
@@ -205,6 +294,40 @@ def calculate_rgb_histogram(roi):
     hist_b = cv2.normalize(hist_b, hist_b).flatten()
     
     return np.concatenate((hist_r, hist_g, hist_b))
+
+def classify_player(feature_vector, team_centers):
+    # Find the closest cluster center and classify the player
+    distances = np.linalg.norm(team_centers - feature_vector, axis=1)
+    return np.argmin(distances)
+
+def get_feature_vector(img, bbox):
+    # Assuming 'assign_class_from_color_histogram' returns a feature vector for the given bbox
+    # This function is a placeholder for whatever method you use to get the feature vector
+    # x1, y1, x2, y2 = bbox
+    x1, y1, x2, y2 = map(int, bbox)
+    roi = img[y1:y2, x1:x2]  # Extract the region of interest (ROI)
+    jersey_roi = jersey_cutout(roi)  # Focus on the jersey area
+    blurred_jersey_roi = apply_gaussian_blur(jersey_roi)  # Apply Gaussian blur to the jersey ROI
+    # feature_vector = calculate_rgb_histogram(blurred_jersey_roi)  # Calculate the RGB histogram and flatten it
+    feature_vector = calculate_hsv_histogram(blurred_jersey_roi) 
+
+    return feature_vector
+
+def calculate_hsv_histogram(roi, bins=32):
+    # Convert ROI to HSV
+    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    
+    # Calculate the histograms for the H, S, and V channels with fewer bins
+    hist_h = cv2.calcHist([hsv_roi], [0], None, [bins], [0, 180])  # Hue values range from 0 to 180
+    hist_s = cv2.calcHist([hsv_roi], [1], None, [bins], [0, 256])
+    hist_v = cv2.calcHist([hsv_roi], [2], None, [bins], [0, 256])
+    
+    # Normalize histograms
+    hist_h = cv2.normalize(hist_h, hist_h).flatten()
+    hist_s = cv2.normalize(hist_s, hist_s).flatten()
+    hist_v = cv2.normalize(hist_v, hist_v).flatten()
+    
+    return np.concatenate((hist_h, hist_s, hist_v))
 
 def jersey_cutout(roi, reduce_percentage=0.5):
     h, w, _ = roi.shape
@@ -224,22 +347,23 @@ def apply_gaussian_blur(roi, kernel_size=(5, 5)):
     blurred_roi = cv2.GaussianBlur(roi, kernel_size, 0)
     return blurred_roi
 
-def get_feature_vector(img, bbox):
-    # Assuming 'assign_class_from_color_histogram' returns a feature vector for the given bbox
-    # This function is a placeholder for whatever method you use to get the feature vector
-    # x1, y1, x2, y2 = bbox
-    x1, y1, x2, y2 = map(int, bbox)
-    roi = img[y1:y2, x1:x2]  # Extract the region of interest (ROI)
-    jersey_roi = jersey_cutout(roi)  # Focus on the jersey area
-    blurred_jersey_roi = apply_gaussian_blur(jersey_roi)  # Apply Gaussian blur to the jersey ROI
-    feature_vector = calculate_rgb_histogram(blurred_jersey_roi)  # Calculate the RGB histogram and flatten it
-    
-    return feature_vector
+########################################################################################################################################
 
-def classify_player(feature_vector, team_centers):
-    # Find the closest cluster center and classify the player
-    distances = np.linalg.norm(team_centers - feature_vector, axis=1)
-    return np.argmin(distances)
+# Heatmap generation
+########################################################################################################################################
+
+def generate_heatmap(heatmap):
+    heatmap = cv2.GaussianBlur(heatmap, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT)  # Apply Gaussian Blur
+    heatmap_normalized = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)  # Normalize to fit [0, 255] scale
+    heatmap_normalized = np.uint8(heatmap_normalized)  # Convert to uint8
+    heatmap_color = cv2.applyColorMap(heatmap_normalized, cv2.COLORMAP_JET)  # Apply color map
+    return heatmap_color
+
+# Overlay heatmaps on the original field image
+def overlay_heatmap(field_image, heatmap, alpha=0.6):
+    return cv2.addWeighted(heatmap, alpha, field_image, 1 - alpha, 0)
+
+########################################################################################################################################
 
 # Function to transform points using the homography matrix
 def apply_homography(H, points):
@@ -315,7 +439,7 @@ def run(
 
     if (version_part == "v2.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('homography_matrices_4.pkl', 'rb') as f:
+        with open('hom_matrix/homography_matrices_short_45_sec.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
@@ -476,6 +600,9 @@ def run(
 
                 points = list(updated_points.values())
 
+                left_side_labels = {"TLP", "TLI", "TLG", "BLG", "BLI"}
+                right_side_labels = {"TRP", "TRI", "TRG", "BRG", "BRI"}
+
                 # Apply stored bounding boxes onto the image
                 if (len(points) >= 4):
                     for stored_bbox in points:
@@ -515,16 +642,17 @@ def run(
                         bbox = x1, y1, x2, y2
 
                         feature_vector = get_feature_vector(im_changed, bbox)  # Extract feature vector
-                        feature_vectors.append(feature_vector) 
+                        feature_vectors.append(feature_vector)
 
                         if len(feature_vectors) >= 20:  # Condition to start or update clustering
                             # Convert list to array for K-means
                             feature_vectors_array = np.array(feature_vectors)
+
                             if kmeans_model is None or new_data_counter >= update_interval:
                                 kmeans_model = KMeans(n_clusters=2, random_state=42).fit(feature_vectors_array)
                                 new_data_counter = 0  # Reset counter after update
                             team_centers = kmeans_model.cluster_centers_
-            
+
                         assigned_class = None
                         if kmeans_model is not None:
                             assigned_class = classify_player(feature_vector, team_centers)  # Classify based on closest center
@@ -542,20 +670,32 @@ def run(
 
                         annotator_track.box_label([x1, y1, x2, y2], label, color)
 
-                        H = loaded_homography_matrices.get(seen)
-
+                        temp = seen
+                        while (temp != 1 and loaded_homography_matrices.get(temp) is None):
+                            temp -= 1
+                        
+                        H = loaded_homography_matrices.get(temp)
+                        
                         if (H is not None):
                             # Get the center of the bounding box
                             bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
                             # Map the center point onto the 2D field using the homography matrix
                             field_point = apply_homography(H, bbox_center)[0]
-
                             x, y = field_point  # Mapped point
+
                             # Adjust for boundaries
                             x = max(left_boundary[0], min(x, right_boundary[0]))  # Between Left and Right
                             y = max(top_boundary[1], min(y, bottom_boundary[1]))  # Between Top and Bottom
+                            field_point = adjust_point_based_on_corner(np.array([x, y]))
+
+                            x, y = field_point  # Mapped point
                             field_point = (int(x), int(y))
-                            
+
+                            if (assigned_class == 0):
+                                heatmap_team_1[field_point[1], field_point[0]] += 1
+                            elif (assigned_class == 1):
+                                heatmap_team_2[field_point[1], field_point[0]] += 1
+
                             # Draw the point on the field image
                             field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
                             cv2.circle(field_image, field_point, radius=5, color=color, thickness=-1)  # -1 fills the circle
@@ -580,16 +720,23 @@ def run(
                         x1, y1, x2, y2 = stored_bbox['xyxy']
 
                         # Map the center point onto the 2D field using the homography matrix
-                        H = loaded_homography_matrices.get(seen)
+                        temp = seen
+                        while (temp != 1 and loaded_homography_matrices.get(temp) is None):
+                            temp -= 1
+                        
+                        H = loaded_homography_matrices.get(temp)
                         if (H is not None):
                             # Get the center of the bounding box
                             bbox_center = np.array([[(x1 + x2) / 2, (y1 + y2) / 2]], dtype=np.float32)
                             field_point = apply_homography(H, bbox_center)[0]
-
                             x, y = field_point  # Mapped point
+
                             # Adjust for boundaries
                             x = max(left_boundary[0], min(x, right_boundary[0]))  # Between Left and Right
                             y = max(top_boundary[1], min(y, bottom_boundary[1]))  # Between Top and Bottom
+                            field_point = adjust_point_based_on_corner(np.array([x, y]))
+
+                            x, y = field_point  # Mapped point
                             field_point = (int(x), int(y))
                             
                             # Draw the point on the field image
@@ -652,8 +799,18 @@ def run(
 
     # Save the homography_matrices dictionary to a file
     if (version_part == "v4.pt"):
-        with open('homography_matrices_4.pkl', 'wb') as f:
+        with open('hom_matrix/homography_matrices_short_45_sec.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
+
+    heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
+    heatmap_color_team_2 = generate_heatmap(heatmap_team_2)
+    
+    field_with_heatmap_team_1 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_1)
+    field_with_heatmap_team_2 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_2)
+
+    # Save the heatmap images
+    cv2.imwrite('heatmaps/heatmap_team_1.png', field_with_heatmap_team_1)
+    cv2.imwrite('heatmaps/heatmap_team_2.png', field_with_heatmap_team_2)
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
