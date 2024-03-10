@@ -101,6 +101,10 @@ kmeans_model = None  # To store the K-means model once clustering is done
 team_centers = None  # To store team centers for classification
 homography_matrices = {}
 
+
+left_side_labels = {"TLP", "TLI", "TLG", "BLG", "BLI"}
+right_side_labels = {"TRP", "TRI", "TRG", "BRG", "BRI"}
+
 # Define the corresponding coordinates on the 2D field
 field_points = [
     (53, 60), (53, 169), (53, 187), (53, 224), (53, 242),
@@ -365,6 +369,18 @@ def overlay_heatmap(field_image, heatmap, alpha=0.6):
 
 ########################################################################################################################################
 
+# Side points filtering
+########################################################################################################################################
+
+def filter_top_conf_points(side_labels, points):
+    # Extract points and their confidences for the specified side
+    side_points = {k: v for k, v in points.items() if k in side_labels}
+    # Sort by confidence, high to low, and get the top 2
+    sorted_by_conf = sorted(side_points.items(), key=lambda x: float(x[1]['label'].split()[-1]), reverse=True)[:2]
+    return {k: v for k, v in sorted_by_conf}
+
+########################################################################################################################################
+
 # Function to transform points using the homography matrix
 def apply_homography(H, points):
     # Convert points to homogeneous coordinates
@@ -439,7 +455,7 @@ def run(
 
     if (version_part == "v2.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('hom_matrix/homography_matrices_short_45_sec.pkl', 'rb') as f:
+        with open('hom_matrix/homography_matrices_short_3_side_filters.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
@@ -545,12 +561,13 @@ def run(
                             detections_to_track.append(np.array([x1, y1, w, h]))
                             bbox_conf.append(conf)
                         else:
-                            point = label[:-5]
+                            point = label.split()[0]
+                            
                             if point in points_dict:
                                 # If the label already exists, compare confidence values
-                                existing_conf = float(points_dict[point]['label'].split()[-1])
+                                curr_conf = float(points_dict[point]['label'].split()[-1])
                                 new_conf = float(label.split()[-1])
-                                if new_conf > existing_conf:
+                                if new_conf > curr_conf:
                                     # Update the dictionary with the detection of higher confidence
                                     points_dict[point] = {'xyxy': xyxy, 'label': label}
                             else:
@@ -589,8 +606,8 @@ def run(
 
                         if (new_label in points_dict) and label[1] != dominant_letter:
                             # If the label already exists, compare confidence values
-                            existing_conf = float(points_dict[new_label]['label'].split()[-1])
-                            if conf > existing_conf:
+                            curr_conf = float(points_dict[new_label]['label'].split()[-1])
+                            if conf > curr_conf:
                                 # Update the dictionary with the detection of higher confidence
                                 updated_points[new_label] = {'xyxy': value['xyxy'], 'label': new_label_conf}
                         else:
@@ -598,17 +615,23 @@ def run(
                     else:
                         updated_points[label] = {'xyxy': value['xyxy'], 'label': value['label']}
 
-                points = list(updated_points.values())
+                # Filter left and right side points
+                left_points_filtered = filter_top_conf_points(left_side_labels, updated_points)
+                right_points_filtered = filter_top_conf_points(right_side_labels, updated_points)
 
-                left_side_labels = {"TLP", "TLI", "TLG", "BLG", "BLI"}
-                right_side_labels = {"TRP", "TRI", "TRG", "BRG", "BRI"}
+                # Update original points dictionary to include only the filtered points plus any points not in left/right side labels
+                filtered_points = {**{k: v for k, v in updated_points.items() if k not in left_side_labels and k not in right_side_labels},
+                                **left_points_filtered,
+                                **right_points_filtered}
+
+                points = list(filtered_points.values())
 
                 # Apply stored bounding boxes onto the image
                 if (len(points) >= 4):
                     for stored_bbox in points:
                         bbox = stored_bbox['xyxy']
                         label = stored_bbox['label']
-                        label_point = label[:-5]
+                        label_point = label.split()[0]
                         # Get the center of the bbox
                         frame_points.append(((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2))     
 
@@ -799,7 +822,7 @@ def run(
 
     # Save the homography_matrices dictionary to a file
     if (version_part == "v4.pt"):
-        with open('hom_matrix/homography_matrices_short_45_sec.pkl', 'wb') as f:
+        with open('hom_matrix/homography_matrices_short_3_side_filters.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
     heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
@@ -811,6 +834,9 @@ def run(
     # Save the heatmap images
     cv2.imwrite('heatmaps/heatmap_team_1.png', field_with_heatmap_team_1)
     cv2.imwrite('heatmaps/heatmap_team_2.png', field_with_heatmap_team_2)
+
+    print("Heatmap for team_1 save at: heatmaps/heatmap_team_1.png")
+    print("Heatmap for team_2 save at: heatmaps/heatmap_team_2.png")
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
