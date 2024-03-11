@@ -110,14 +110,16 @@ field_points = [
     (53, 60), (53, 169), (53, 187), (53, 224), (53, 242),
     (587, 60), (587, 169), (587, 187), (587, 224), (587, 242),
     (216, 52), (424, 52), (320, 52), (231, 129), (231, 283),
-    (409, 129), (409, 283), (124, 129), (124, 283), (516, 129), (516, 283)
+    (409, 129), (409, 283), (124, 129), (124, 283), (516, 129), (516, 283),
+    (320, 161), (320, 251), (11, 176), (11, 235), (629, 176), (629, 235)
 ]
 
 point_names = {
                 "TLP": 0, "TLI": 0, "TLG": 0, "BLG": 0, "BLI": 0,
                 "TRP": 0, "TRI": 0, "TRG": 0, "BRG": 0, "BRI": 0,
                 "TLMP": 0, "TRMP": 0, "MP": 0, "TLMC": 0, "BLMC": 0, "TRMC": 0, "BRMC": 0,
-                "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0
+                "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0,
+                "TMP": 0, "BMP": 0, "TLB": 0, "BLB": 0, "TRB": 0, "BRB": 0
 }
 
 # Define boundary coordinates
@@ -455,7 +457,7 @@ def run(
 
     if (version_part == "v2.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('hom_matrix/homography_matrices_short_3_side_filters.pkl', 'rb') as f:
+        with open('hom_matrix/homography_matrices_short_45_recent.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
@@ -822,7 +824,7 @@ def run(
 
     # Save the homography_matrices dictionary to a file
     if (version_part == "v4.pt"):
-        with open('hom_matrix/homography_matrices_short_3_side_filters.pkl', 'wb') as f:
+        with open('hom_matrix/homography_matrices_short_45_recent.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
     heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
