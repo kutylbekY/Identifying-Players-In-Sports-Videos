@@ -9,6 +9,15 @@ from .sort.tracker import Tracker
 
 __all__ = ['DeepSort']
 
+def is_close(coord1, coord2, threshold=50):
+    """Check if coordinates are within a certain distance threshold."""
+    dist = np.linalg.norm(np.array(coord1[:2]) - np.array(coord2[:2]))  # Simple distance check based on the top-left corner
+    return dist < threshold
+
+def dist_calc(coord1, coord2):
+    """Check if coordinates are within a certain distance threshold."""
+    dist = np.linalg.norm(np.array(coord1[:2]) - np.array(coord2[:2]))  # Simple distance check based on the top-left corner
+    return dist
 
 class DeepSort(object):
     def __init__(self, model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
@@ -16,6 +25,11 @@ class DeepSort(object):
         self.nms_max_overlap = nms_max_overlap
 
         self.extractor = Extractor(model_path, use_cuda=use_cuda)
+
+        self.available_ids = set(range(16))  # Initialize available IDs
+        self.dead_ids = set()  # Initialize an empty set for dead IDs
+        self.prev_ids = set()  # Initialize an empty set for dead IDs
+        self.last_known_coords = {}  # Store the last known coordinates of each ID
 
         max_cosine_distance = max_dist
         metric = NearestNeighborDistanceMetric(
@@ -44,40 +58,93 @@ class DeepSort(object):
         # output bbox identities
         outputs = []
         
-        available_track_ids = set(range(16))  # IDs from 0 to 15
+        # available_track_ids = set(range(16))  # IDs from 0 to 15
+        curr_ids = set()
+        new_ids = set()
+        dead_ids = set()
+        
+        for track in self.tracker.tracks:
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue
+            track_id = track.track_id
+            track_box = track.to_tlwh()
+            track_coord = self._tlwh_to_xyxy(track_box)
+
+            if track_id < 0 or track_id > 15:
+                if self.available_ids:
+                    track_id = self.available_ids.pop()
+                    curr_ids.add(track_id)
+                    self.last_known_coords[track_id] = track_coord
+                # else 
+                    # if there are no available ids left then we need to check from dead_ids if we can use any of them
+            else:
+                curr_ids.add(track_id)
+                self.last_known_coords[track_id] = track_coord
+
+        if (len(self.prev_ids) != 0):
+            dead_ids = self.prev_ids - curr_ids
+            new_ids = curr_ids - self.prev_ids
+
+        for dead_id in dead_ids:
+            self.dead_ids.add(dead_id)
 
         # Pre-update loop to adjust available_track_ids based on current tracks
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
-            id = track.track_id
+            track_id = track.track_id
+            track_box = track.to_tlwh()
+            track_coord = self._tlwh_to_xyxy(track_box)
 
-            if id >= 0 and id <= 15:
-                if id in available_track_ids:
-                    available_track_ids.remove(id)
+            if track_id in new_ids:
+                # assigned = False
+                # track_coord_ = self.last_known_coords[track_id]
+                for new_id in new_ids:
+                    if (track_id == new_id):
+                        min_dist = 0
+                        min_id = 999999
+
+                        for dead_id in list(self.dead_ids):
+                            tmp = min_dist
+                            min_dist = min(min_dist, dist_calc(self.last_known_coords[new_id], self.last_known_coords[dead_id]))
+
+                            if (min_dist != tmp):
+                                min_id = dead_id
+
+                        if (min_id != 999999):
+                            if is_close(self.last_known_coords[new_id], self.last_known_coords[min_id]):
+                                self.dead_ids.remove(min_id)
+                                self.available_ids.add(new_id)
+                                curr_ids.remove(new_id)
+                                curr_ids.add(min_id)
+                                track.track_id = min_id
+
+                                del self.last_known_coords[new_id]
+                                self.last_known_coords[min_id] = track_coord
+                                # assigned = True
+                                break
+                # if not assigned and new_id in self.available_ids:
+                #     self.available_ids.remove(new_id)
+
+            # if id >= 0 and id <= 15:
+            #     if id in available_track_ids:
+            #         available_track_ids.remove(id)
+            # self.last_known_coords[id] = self._tlwh_to_xyxy(track.to_tlwh())
 
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             box = track.to_tlwh()
             x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
-            id = track.track_id
+            track_id = track.track_id
+            # x1, y1, x2, y2 = self.last_known_coords[track_id]
 
-            if id < 0 or id > 15:
-                if available_track_ids:
-                    id = available_track_ids.pop()
-
-            outputs.append(np.array([x1, y1, x2, y2, id], dtype=int))
+            outputs.append(np.array([x1, y1, x2, y2, track_id], dtype=int))
 
         if len(outputs) > 0:
             outputs = np.stack(outputs, axis=0)
         return outputs
 
-    """
-    TODO:
-        Convert bbox from xc_yc_w_h to xtl_ytl_w_h
-    Thanks JieChen91@github.com for reporting this bug!
-    """
     @staticmethod
     def _xywh_to_tlwh(bbox_xywh):
         if isinstance(bbox_xywh, np.ndarray):
@@ -97,11 +164,6 @@ class DeepSort(object):
         return x1, y1, x2, y2
 
     def _tlwh_to_xyxy(self, bbox_tlwh):
-        """
-        TODO:
-            Convert bbox from xtl_ytl_w_h to xc_yc_w_h
-        Thanks JieChen91@github.com for reporting this bug!
-        """
         x, y, w, h = bbox_tlwh
         x1 = max(int(x), 0)
         x2 = min(int(x+w), self.width - 1)
