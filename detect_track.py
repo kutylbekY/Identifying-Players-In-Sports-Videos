@@ -104,6 +104,7 @@ homography_matrices = {}
 
 left_side_labels = {"TLP", "TLI", "TLG", "BLG", "BLI"}
 right_side_labels = {"TRP", "TRI", "TRG", "BRG", "BRI"}
+back_labels = {"TLB", "BLB", "TRB", "BRB"}
 
 # Define the corresponding coordinates on the 2D field
 field_points = [
@@ -115,11 +116,11 @@ field_points = [
 ]
 
 point_names = {
-                "TLP": 0, "TLI": 0, "TLG": 0, "BLG": 0, "BLI": 0,
-                "TRP": 0, "TRI": 0, "TRG": 0, "BRG": 0, "BRI": 0,
-                "TLMP": 0, "TRMP": 0, "MP": 0, "TLMC": 0, "BLMC": 0, "TRMC": 0, "BRMC": 0,
-                "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0,
-                "TMP": 0, "BMP": 0, "TLB": 0, "BLB": 0, "TRB": 0, "BRB": 0
+    "TLP": 0, "TLI": 0, "TLG": 0, "BLG": 0, "BLI": 0,
+    "TRP": 0, "TRI": 0, "TRG": 0, "BRG": 0, "BRI": 0,
+    "TLMP": 0, "TRMP": 0, "MP": 0, "TLMC": 0, "BLMC": 0, "TRMC": 0, "BRMC": 0,
+    "TLC": 0, "BLC": 0, "TRC": 0, "BRC": 0,
+    "TMP": 0, "BMP": 0, "TLB": 0, "BLB": 0, "TRB": 0, "BRB": 0
 }
 
 # Define boundary coordinates
@@ -146,7 +147,8 @@ label_to_field = {
     "TLP": (53, 60), "TLI": (53, 169), "TLG": (53, 187), "BLG": (53, 224), "BLI": (53, 242),
     "TRP": (587, 60), "TRI": (587, 169), "TRG": (587, 187), "BRG": (587, 224), "BRI": (587, 242),
     "TLMP": (216, 52), "TRMP": (424, 52), "MP": (320, 52), "TLMC": (231, 129), "BLMC": (231, 283), "TRMC": (409, 129), "BRMC": (409, 283),
-    "TLC": (124, 129), "BLC": (124, 283), "TRC": (516, 129), "BRC": (516, 283)
+    "TLC": (124, 129), "BLC": (124, 283), "TRC": (516, 129), "BRC": (516, 283),
+    "TMP": (320, 161), "BMP": (320, 251), "TLB": (11, 176), "BLB": (11, 235), "TRB": (629, 176), "BRB": (629, 235)
 }
 
 def change_white(image):
@@ -535,6 +537,7 @@ def run(
             field_points = [] 
 
             points_dict  = {}
+            points_back = {}
             count_R = 0
             count_L = 0
 
@@ -564,8 +567,23 @@ def run(
                             bbox_conf.append(conf)
                         else:
                             point = label.split()[0]
-                            
-                            if point in points_dict:
+
+                            if point in back_labels:
+                                if point in points_back:
+                                    # If the label already exists, compare confidence values
+                                    curr_conf = float(points_back[point]['label'].split()[-1])
+                                    new_conf = float(label.split()[-1])
+                                    if new_conf > curr_conf:
+                                        # Update the dictionary with the detection of higher confidence
+                                        points_back[point] = {'xyxy': xyxy, 'label': label}
+                                else:
+                                    # If the label does not exist, add it to the dictionary
+                                    if label[1] == 'R':
+                                        count_R += 1
+                                    elif label[1] == 'L':
+                                        count_L += 1
+                                    points_back[point] = {'xyxy': xyxy, 'label': label}
+                            elif point in points_dict:
                                 # If the label already exists, compare confidence values
                                 curr_conf = float(points_dict[point]['label'].split()[-1])
                                 new_conf = float(label.split()[-1])
@@ -596,6 +614,19 @@ def run(
                 
                 dominant_letter = 'R' if count_R > count_L else 'L'
                 updated_points = {}
+
+                while len(points_dict) < 4 and points_back:
+                    # Sort points_back items by their confidence values, highest first
+                    sorted_points_back = sorted(points_back.items(), key=lambda x: float(x[1]['label'].split()[-1]), reverse=True)
+
+                    # Take the highest confidence item from points_back
+                    highest_conf_point, highest_conf_data = sorted_points_back[0]
+
+                    # Add this item to points_dict
+                    points_dict[highest_conf_point] = highest_conf_data
+
+                    # Remove the added item from points_back to avoid adding it again
+                    del points_back[highest_conf_point]
 
                 # Adjust labels in points_dict
                 for key, value in points_dict.items():
@@ -823,22 +854,23 @@ def run(
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
     # Save the homography_matrices dictionary to a file
-    if (version_part == "v4.pt"):
+    if (version_part == "v5.pt"):
         with open('hom_matrix/homography_matrices_short_45_recent.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
-    heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
-    heatmap_color_team_2 = generate_heatmap(heatmap_team_2)
-    
-    field_with_heatmap_team_1 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_1)
-    field_with_heatmap_team_2 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_2)
+    if (version_part == "v2.pt"):
+        heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
+        heatmap_color_team_2 = generate_heatmap(heatmap_team_2)
+        
+        field_with_heatmap_team_1 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_1)
+        field_with_heatmap_team_2 = overlay_heatmap(heatmap_image.copy(), heatmap_color_team_2)
 
-    # Save the heatmap images
-    cv2.imwrite('heatmaps/heatmap_team_1.png', field_with_heatmap_team_1)
-    cv2.imwrite('heatmaps/heatmap_team_2.png', field_with_heatmap_team_2)
+        # Save the heatmap images
+        cv2.imwrite('heatmaps/heatmap_team_1.png', field_with_heatmap_team_1)
+        cv2.imwrite('heatmaps/heatmap_team_2.png', field_with_heatmap_team_2)
 
-    print("Heatmap for team_1 save at: heatmaps/heatmap_team_1.png")
-    print("Heatmap for team_2 save at: heatmaps/heatmap_team_2.png")
+        print("Heatmap for team_1 save at: heatmaps/heatmap_team_1.png")
+        print("Heatmap for team_2 save at: heatmaps/heatmap_team_2.png")
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
