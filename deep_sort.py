@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-
 from .deep.feature_extractor import Extractor
 from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.detection import Detection
@@ -15,7 +14,7 @@ def is_close(coord1, coord2, threshold=50):
     return dist < threshold
 
 def dist_calc(coord1, coord2):
-    """Check if coordinates are within a certain distance threshold."""
+    """Check distance between coordinates."""
     dist = np.linalg.norm(np.array(coord1[:2]) - np.array(coord2[:2]))  # Simple distance check based on the top-left corner
     return dist
 
@@ -39,14 +38,13 @@ class DeepSort(object):
             metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
 
     def update(self, bbox_xywh, confidences, ori_img):
-    # def update(self, bbox_xywh, ori_img):
         self.height, self.width = ori_img.shape[:2]
+
         # generate detections
         features = self._get_features(bbox_xywh, ori_img)
-        # bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
+        
         detections = [Detection(bbox_xywh[i], conf, features[i]) for i, conf in enumerate(
             confidences) if conf > self.min_confidence]
-        # detections = [Detection(bbox_tlwh[i], 1, features[i]) for i in range(len(bbox_tlwh))]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])
@@ -59,7 +57,6 @@ class DeepSort(object):
         # output bbox identities
         outputs = []
         
-        # available_track_ids = set(range(16))  # IDs from 0 to 15
         curr_ids = set()
         new_ids = set()
         local_dead_ids = set()
@@ -96,18 +93,7 @@ class DeepSort(object):
             track_box = track.to_tlwh()
             track_coord = self._tlwh_to_xyxy(track_box)
 
-            # if track_id < 0 or track_id > 15:
-            #     if not self.available_ids:
-            #         for dead_id in list(self.dead_ids):
-            #             tmp = min_dist
-            #             min_dist = min(min_dist, dist_calc(self.last_known_coords[new_id], self.last_known_coords[dead_id]))
-
-            #             if (min_dist != tmp):
-            #                 min_id = dead_id
             if track_id < 0 or track_id > 15:
-                # print("dead_ids: ", self.dead_ids)
-                # print("curr_ids: ", curr_ids)
-                # print("prev_ids: ", self.prev_ids)
                 min_dist = 999999
                 min_id = 999999
 
@@ -119,35 +105,18 @@ class DeepSort(object):
                         min_id = dead_id
 
                 if (min_id != 999999):
-                    # if is_close(self.last_known_coords[new_id], self.last_known_coords[min_id]):
                     self.dead_ids.remove(min_id)
                     curr_ids.add(min_id)
-                    # track.track_id = min_id
                     self.track_ids[track_id] = min_id
                     self.last_known_coords[min_id] = track_coord
                     used.add(min_id)
             elif track_id in new_ids:
-                # print("dead_ids: ", self.dead_ids)
-                # print("prev_ids: ", self.prev_ids)
-                # print("curr_ids: ", curr_ids)
-                # print("new_ids: ", new_ids)
-                # print("used: ", used)
-                # print("last_known_coords: ", self.last_known_coords)
-                # print("track_id: ", track_id)
-                # assigned = False
-                # track_coord_ = self.last_known_coords[track_id]
                 for new_id in new_ids:
                     if (track_id == new_id):
                         min_dist = 999999
                         min_id = 999999
 
                         for dead_id in list(self.dead_ids):
-                            # tmp_dist = dist_calc(self.last_known_coords[new_id], self.last_known_coords[dead_id])
-
-                            # if (min_dist > tmp_dist and (dead_id not in used)):
-                            #     min_dist = tmp_dist
-                            #     min_id = dead_id
-
                             tmp = min_dist
                             min_dist = min(min_dist, dist_calc(self.last_known_coords[new_id], self.last_known_coords[dead_id]))
 
@@ -155,26 +124,16 @@ class DeepSort(object):
                                 min_id = dead_id
 
                         if (min_id != 999999):
-                            # if is_close(self.last_known_coords[new_id], self.last_known_coords[min_id]):
                             self.dead_ids.remove(min_id)
                             self.available_ids.add(new_id)
                             curr_ids.remove(new_id)
                             curr_ids.add(min_id)
-                            # track.track_id = min_id
                             self.track_ids[track_id] = min_id
                             used.add(min_id)
 
                             del self.last_known_coords[new_id]
                             self.last_known_coords[min_id] = track_coord
-                            # assigned = True
                             break
-                # if not assigned and new_id in self.available_ids:
-                #     self.available_ids.remove(new_id)
-
-            # if id >= 0 and id <= 15:
-            #     if id in available_track_ids:
-            #         available_track_ids.remove(id)
-            # self.last_known_coords[id] = self._tlwh_to_xyxy(track.to_tlwh())
 
         self.prev_ids = curr_ids.copy()
         used = set()
@@ -189,7 +148,6 @@ class DeepSort(object):
             if ((track_id in self.track_ids) and (self.track_ids[track_id] not in used)):
                 track_id = self.track_ids[track_id]
             used.add(track_id)
-            # x1, y1, x2, y2 = self.last_known_coords[track_id]
 
             outputs.append(np.array([x1, y1, x2, y2, track_id], dtype=int))
 
