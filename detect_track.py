@@ -1,57 +1,17 @@
-# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
-"""
-Run YOLOv5 detection inference on images, videos, directories, globs, YouTube, webcam, streams, etc.
-
-Usage - sources:
-    $ python detect.py --weights yolov5s.pt --source 0                               # webcam
-                                                     img.jpg                         # image
-                                                     vid.mp4                         # video
-                                                     screen                          # screenshot
-                                                     path/                           # directory
-                                                     list.txt                        # list of images
-                                                     list.streams                    # list of streams
-                                                     'path/*.jpg'                    # glob
-                                                     'https://youtu.be/Zgi9g1ksQHc'  # YouTube
-                                                     'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP stream
-
-Usage - formats:
-    $ python detect.py --weights yolov5s.pt                 # PyTorch
-                                 yolov5s.torchscript        # TorchScript
-                                 yolov5s.onnx               # ONNX Runtime or OpenCV DNN with --dnn
-                                 yolov5s_openvino_model     # OpenVINO
-                                 yolov5s.engine             # TensorRT
-                                 yolov5s.mlmodel            # CoreML (macOS-only)
-                                 yolov5s_saved_model        # TensorFlow SavedModel
-                                 yolov5s.pb                 # TensorFlow GraphDef
-                                 yolov5s.tflite             # TensorFlow Lite
-                                 yolov5s_edgetpu.tflite     # TensorFlow Edge TPU
-                                 yolov5s_paddle_model       # PaddlePaddle
-"""
-
 import argparse
-import easyocr
 import os
 import platform
 import sys
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 import torch
-import pytesseract
-from PIL import Image, ImageDraw
-import re
 import pickle
-
 from typing import Any
 from ultralytics import YOLO
 import cv2
-import cvzone
-import math
-# from deep_sort_realtime.deepsort_tracker import DeepSort
 from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth
 from scipy.ndimage import gaussian_filter
-
 from deep_sort.utils.parser import get_config
 from deep_sort.deep_sort import DeepSort
 from deep_sort.sort.tracker import Tracker
@@ -69,7 +29,7 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
-# Modify these colors based on your preferences
+# Colours
 COLOR_TEAM_1 = (0, 0, 255, 255)  # Red
 COLOR_TEAM_2 = (255, 0, 0, 255)  # Yellow
 COLOR_REF = (0, 255, 0, 255)  # Green
@@ -78,35 +38,16 @@ COLOR_UN = (0, 0, 0, 0)
 COLOR_WHITE = (255, 255, 255, 255)  # White
 COLOR_BLACK = (0, 0, 0, 255)    # Black
 
-def colors_s(class_idx, use_rgb=False):
-    # Define your color mapping based on class indices
-    color_mapping = {
-        'team_1': (0, 0, 255),  # Red for "team 1"
-        'team_2': (0, 255, 0),  # Blue for "team 2"
-        'ref': (0, 255, 255),  # Yellow for "ref"
-        # Add more mappings for other classes as needed
-    }
-
-    if use_rgb:
-        return color_mapping.get(class_idx, (255, 255, 255))  # Default to white if class not found
-    else:
-        return class_idx
-
-cnt = 0
-
-# Assuming `feature_vectors_accumulated` is a list that accumulates feature vectors over frames
-# Global variables to maintain state
 feature_vectors = []  # To accumulate feature vectors from initial detections
 kmeans_model = None  # To store the K-means model once clustering is done
 team_centers = None  # To store team centers for classification
-homography_matrices = {}
-
+homography_matrices = {} # To store homography matrices
 
 left_side_labels = {"TLP", "TLI", "TLG", "BLG", "BLI"}
 right_side_labels = {"TRP", "TRI", "TRG", "BRG", "BRI"}
 back_labels = {"TLB", "BLB", "TRB", "BRB"}
 
-# Define the corresponding coordinates on the 2D field
+# Corresponding coordinates on the 2D field
 field_points = [
     (53, 60), (53, 169), (53, 187), (53, 224), (53, 242),
     (587, 60), (587, 169), (587, 187), (587, 224), (587, 242),
@@ -123,24 +64,11 @@ point_names = {
     "TMP": 0, "BMP": 0, "TLB": 0, "BLB": 0, "TRB": 0, "BRB": 0
 }
 
-# Define boundary coordinates
+# Bundary coordinates
 top_boundary = (320, 60)
 bottom_boundary = (320, 355)
 right_boundary = (620, 202)
 left_boundary = (20, 202)
-
- # Load the 2D field image
-field_image_path = 'inputs/2d_field.png'  # Replace with the path to your image
-heatmap_image = cv2.imread(field_image_path)
-if heatmap_image is None:
-    raise ValueError(f"Image not found at the path: {field_image_path}")
-
-# Assuming 'field_image' is the ice hockey field image you mentioned
-height, width, _ = heatmap_image.shape
-
-# Initialize empty heatmaps for each team
-heatmap_team_1 = np.zeros((height, width), dtype=np.float32)
-heatmap_team_2 = np.zeros((height, width), dtype=np.float32)
 
 # Define a dictionary to map labels to 2D field coordinates
 label_to_field = {
@@ -150,6 +78,21 @@ label_to_field = {
     "TLC": (124, 129), "BLC": (124, 283), "TRC": (516, 129), "BRC": (516, 283),
     "TMP": (320, 161), "BMP": (320, 251), "TLB": (11, 176), "BLB": (11, 235), "TRB": (629, 176), "BRB": (629, 235)
 }
+
+# heatmap initialisation
+################################################################
+
+ # Load the 2D field image
+field_image_path = 'inputs/2d_field.png'
+heatmap_image = cv2.imread(field_image_path)
+if heatmap_image is None:
+    raise ValueError(f"Image not found at the path: {field_image_path}")
+
+height, width, _ = heatmap_image.shape
+
+# Initialize empty heatmaps for each team
+heatmap_team_1 = np.zeros((height, width), dtype=np.float32)
+heatmap_team_2 = np.zeros((height, width), dtype=np.float32)
 
 def change_white(image):
     if isinstance(image, str):
@@ -231,6 +174,7 @@ def is_point_inside_square(p, t, b):
 def mirror_across_diagonal(p, tl, br):
     # Vector from tl to br
     diagonal_vec = np.array([br[0] - tl[0], br[1] - tl[1]])
+
     # Vector from tl to p
     tl_to_p_vec = np.array([p[0] - tl[0], p[1] - tl[1]])
     
@@ -262,19 +206,6 @@ def adjust_point_based_on_corner(field_point):
     # Bottom Right Corner
     tr_bottom_right = np.array([629, 302])
     bl_bottom_right = np.array([565, 360])
-
-    # if is_left_of_diagonal(field_point, tr_top_left, bl_top_left):
-    #     field_point = mirror_across_diagonal(field_point, tr_top_left, bl_top_left)
-    #     changed = True
-    # elif is_left_of_diagonal(field_point, tl_point, br_point):
-    #     field_point = mirror_across_diagonal(field_point, tl_point, br_point)
-    #     changed = True
-    # elif is_right_of_diagonal(field_point, tl_top_right, br_top_right):
-    #     field_point = mirror_across_diagonal(field_point, tl_top_right, br_top_right)
-    #     changed = True
-    # elif is_right_of_diagonal(field_point, tr_bottom_right, bl_bottom_right):
-    #     field_point = mirror_across_diagonal(field_point, tr_bottom_right, bl_bottom_right)
-    #     changed = True
 
     if is_point_inside_square(field_point, tr_top_left, bl_top_left) and is_left_of_diagonal(field_point, tr_top_left, bl_top_left):
         field_point = mirror_across_diagonal(field_point, tr_top_left, bl_top_left)
@@ -309,9 +240,6 @@ def classify_player(feature_vector, team_centers):
     return np.argmin(distances)
 
 def get_feature_vector(img, bbox):
-    # Assuming 'assign_class_from_color_histogram' returns a feature vector for the given bbox
-    # This function is a placeholder for whatever method you use to get the feature vector
-    # x1, y1, x2, y2 = bbox
     x1, y1, x2, y2 = map(int, bbox)
     roi = img[y1:y2, x1:x2]  # Extract the region of interest (ROI)
     jersey_roi = jersey_cutout(roi)  # Focus on the jersey area
@@ -389,10 +317,13 @@ def filter_top_conf_points(side_labels, points):
 def apply_homography(H, points):
     # Convert points to homogeneous coordinates
     points_homogeneous = np.hstack([points, np.ones((points.shape[0], 1))])
+
     # Apply the homography matrix
     points_transformed = np.dot(H, points_homogeneous.T).T
+
     # Convert back from homogeneous to 2D coordinates
     points_transformed = points_transformed[:, :2] / points_transformed[:, 2:]
+
     return points_transformed
 
 # Update DeepSORT tracker with detections
@@ -401,69 +332,44 @@ tracker = DeepSort(model_path=deep_sort_weights, max_age=70)
 
 @smart_inference_mode()
 def run(
-        weights=ROOT / 'yolov5s.pt',  # model path or triton URL
-        source=ROOT / 'data/images',  # file/dir/URL/glob/screen/0(webcam)
-        data=ROOT / 'data/coco128.yaml',  # dataset.yaml path
-        imgsz=(640, 640),  # inference size (height, width)
-        conf_thres=0.25,  # confidence threshold
-        iou_thres=0.45,  # NMS IOU threshold
-        max_det=1000,  # maximum detections per image
-        device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        view_img=False,  # show results
-        save_txt=False,  # save results to *.txt
-        save_conf=False,  # save confidences in --save-txt labels
-        save_crop=False,  # save cropped prediction boxes
-        nosave=False,  # do not save images/videos
-        classes=None,  # filter by class: --class 0, or --class 0 2 3
-        agnostic_nms=False,  # class-agnostic NMS
-        augment=False,  # augmented inference
-        visualize=False,  # visualize features
-        update=False,  # update all models
-        project=ROOT / 'runs/detect',  # save results to project/name
-        name='exp',  # save results to project/name
-        exist_ok=False,  # existing project/name ok, do not increment
-        line_thickness=3,  # bounding box thickness (pixels)
-        hide_labels=False,  # hide labels
-        hide_conf=False,  # hide confidences
-        half=False,  # use FP16 half-precision inference
-        dnn=False,  # use OpenCV DNN for ONNX inference
-        vid_stride=1,  # video frame-rate stride
+        weights=ROOT / 'yolov5s.pt', source=ROOT / 'data/images', data=ROOT / 'data/coco128.yaml', imgsz=(640, 640), conf_thres=0.25, iou_thres=0.45,
+        max_det=1000, device='', view_img=False, save_txt=False, save_conf=False, save_crop=False, nosave=False, classes=None, agnostic_nms=False, augment=False, 
+        visualize=False, update=False, project=ROOT / 'runs/detect', name='exp', exist_ok=False, line_thickness=3, hide_labels=False, hide_conf=False, 
+        half=False, dnn=False, vid_stride=1, 
 ):
     global kmeans_model
-    global cnt
     source = str(source)
-    save_img = not nosave and not source.endswith('.txt')  # save inference images
+    save_img = not nosave and not source.endswith('.txt') 
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
     is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
     webcam = source.isnumeric() or source.endswith('.streams') or (is_url and not is_file)
     screenshot = source.lower().startswith('screen')
     if is_url and is_file:
-        source = check_file(source)  # download
+        source = check_file(source)
 
     # Directories
-    save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-    (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    save_dir = increment_path(Path(project) / name, exist_ok=exist_ok) 
+    (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)
 
     # Load model
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
-    imgsz = check_img_size(imgsz, s=stride)  # check image size
-
-    # check if need to store homography matrix or not
+    imgsz = check_img_size(imgsz, s=stride)
 
     # Extract the filename from the path
     filename = os.path.basename(weights[0])
+
     # Now, assuming the version part is always formatted as "_v<number>.pt" and you want "v<number>.pt":
     version_part = filename.split('_')[-1]
 
-    if (version_part == "v2.pt"):
+    if (version_part == "v4.pt"):
         # Load the homography_matrices dictionary from the file
-        with open('hom_matrix/homography_matrices_short_45_recent.pkl', 'rb') as f:
+        with open('hom_matrix/homography_matrices_short_45_new.pkl', 'rb') as f:
             loaded_homography_matrices = pickle.load(f)
 
     # Dataloader
-    bs = 1  # batch_size
+    bs = 1
     if webcam:
         view_img = check_imshow(warn=True)
         dataset = LoadStreams(source, img_size=imgsz, stride=stride, auto=pt, vid_stride=vid_stride)
@@ -472,10 +378,11 @@ def run(
         dataset = LoadScreenshots(source, img_size=imgsz, stride=stride, auto=pt)
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt, vid_stride=vid_stride)
+        
     vid_path, vid_writer = [None] * bs, [None] * bs
 
     # Run inference
-    model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
+    model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz)) 
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
@@ -494,9 +401,6 @@ def run(
         with dt[2]:
             pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
 
-        # Second-stage classifier (optional)
-        # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
-
         # Process predictions and DeepSORT tracking
         for i, det in enumerate(pred):  # per image
             seen += 1
@@ -506,11 +410,7 @@ def run(
             else:
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
 
-            # create im_changed to deleted_white_image and then deleted_gray_image
             im_changed = change_white(im0)
-            # im_changed = change_gray(im_no_white)
-            # cv2.imwrite("hist/hist_data_unseen/result_" + str(cnt) + ".jpg", im_changed)
-            # print("Result saved to 'hist/hist_data_unseen' folder.")
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # im.jpg
@@ -518,11 +418,12 @@ def run(
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
+
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
             annotator_track = Annotator(im0, line_width=line_thickness, example=str(names))
 
             # Load the 2D field image
-            field_image_path = 'inputs/2d_field.png'  # Replace with the path to your image
+            field_image_path = 'inputs/2d_field.png' 
             field_image = cv2.imread(field_image_path)
             if field_image is None:
                 raise ValueError(f"Image not found at the path: {field_image_path}")
@@ -557,7 +458,6 @@ def run(
                         x1, y1, x2, y2 = map(int, xyxy)
                         w, h = x2 - x1, y2 - y1
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        # print("label: ", label)
 
                         if label[0] == 'R':
                             assigned_class = 'referee'
@@ -598,16 +498,6 @@ def run(
                                     elif label[1] == 'L':
                                         count_L += 1
                                 points_dict[point] = {'xyxy': xyxy, 'label': label}
-                        # stored_bounding_boxes.append({'xyxy': xyxy, 'assigned_class': label, 'color': colors_s(c, True)})
-
-                        # conf_n = math.ceil(conf * 100) / 100
-                        # if (conf_n > 0.5):
-                        #     detections_to_track.append((([x1, y1, w, h]), conf_n, label))
-                        #     detections_to_detect.append({'xyxy': xyxy, 'assigned_class': label})
-                        # detections_to_track.append((([x1, y1, x2, y2]), conf, assigned_class))
-
-                        # annotator.box_label(xyxy, assigned_class, color=color)
-                        # annotator.box_label(xyxy, assigned_class, color=colors_s(c, True))
                     if save_crop:
                         # save_one_box(xyxy, imc, file=save_dir / 'crops' / assigned_class / f'{p.stem}.jpg', BGR=True)
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
@@ -665,16 +555,16 @@ def run(
                         bbox = stored_bbox['xyxy']
                         label = stored_bbox['label']
                         label_point = label.split()[0]
-                        # Get the center of the bbox
-                        frame_points.append(((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2))     
+                        # Get the center of the bbox 
 
                         if label_point in label_to_field:
+                            frame_points.append(((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2))    
                             field_point = label_to_field[label_point]
                             field_points.append(field_point)
+                            annotator.box_label(bbox, label, COLOR_POINTS) # Delete after finished implementing 
                         else:
                             print(f"Label {label_point} not found in label_to_field mapping.")
 
-                        annotator.box_label(bbox, label, COLOR_POINTS) # Delete after finished implementing 
                     
                     # Convert lists to numpy arrays for OpenCV functions
                     frame_points = np.array(frame_points, dtype='float32')
@@ -799,10 +689,7 @@ def run(
                             field_point = tuple(np.round(field_point).astype(int))  # Convert to integer tuple
                             cv2.circle(field_image, field_point, radius=5, color=COLOR_REF, thickness=-1)  # -1 fills the circle
 
-            # cv2.imwrite(f'saved_images/2d_view_frames/frame_{seen}.png', field_image)  # Save the image
             im0 = annotator.result()
-            # cv2.imwrite(f'saved_images/player_frames/frame_{seen}.png', im0)  # Save the image
-            # im0 = annotator_track.result()
 
             if view_img:
                 if platform.system() == 'Linux' and p not in windows:
@@ -828,12 +715,9 @@ def run(
                             vid_writer[i].release()  # release previous video writer
                         if vid_cap:  # video
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            # w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            # h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH)) + w2  # Adjust width to include field_image
                             h = max(h1, h2)  # Use the taller height
                         else:  # stream
-                            # fps, w, h = 30, im0.shape[1], im0.shape[0]
                             fps, w, h = 30, w1 + w2, max(h1, h2)
                         save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
@@ -848,17 +732,16 @@ def run(
                         im0_padded = np.vstack((im0, padding))
                         combined_image = np.hstack((im0_padded, field_image))
                     vid_writer[i].write(combined_image)
-                    # vid_writer[i].write(im0)
 
         # Print time (inference-only)
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
     # Save the homography_matrices dictionary to a file
-    if (version_part == "v5.pt"):
-        with open('hom_matrix/homography_matrices_short_45_recent.pkl', 'wb') as f:
+    if (version_part == "v7.pt"):
+        with open('hom_matrix/homography_matrices_short_45_new.pkl', 'wb') as f:
             pickle.dump(homography_matrices, f)
 
-    if (version_part == "v2.pt"):
+    if (version_part == "v3.pt"):
         heatmap_color_team_1 = generate_heatmap(heatmap_team_1)
         heatmap_color_team_2 = generate_heatmap(heatmap_team_2)
         
