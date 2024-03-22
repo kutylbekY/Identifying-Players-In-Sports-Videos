@@ -1,0 +1,181 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{tabu}
+\usepackage[labelfont=bf, skip=5pt, font=small]{caption}
+\usepackage{subcaption}
+\usepackage[style=chem-acs, articletitle=true]{biblatex}
+\usepackage{tocloft}
+\usepackage{setspace}
+\usepackage{hyperref}
+% \addbibresource{}
+
+\setlength{\parskip}{2em}
+\setlength{\parindent}{0em}
+
+\begin{document}
+
+\begin{center}
+    % \vspace*{-1in}
+    % \vspace*{0.5em}
+    \Huge\textbf{Tracking Players In \\ Sports Videos} \\[12pt]
+    \Large{An investigation into tracking ice hockey \\ players in professional matches} \\[55pt]
+    \huge\textbf{Yerassyl Kutylbek} \\[6pt]
+    \Large\textbf{ID Number:} {10825970} \\[5pt]
+    \Large{Supervised by Dr Aphrodite Galata} \\[5pt]
+    \date\Large{April 30, 2024} \\[90pt]
+
+    \large{A report submitted as part of the Third Year Project for} \\[3pt]
+    \large{the degree of BSc (Hons) Artificial Intelligence}
+    \centering
+    \includegraphics[width=0.6\textwidth]{uom_logo.png} \\
+    \large{School of Computer Science} \\[5pt]
+    \large{The University of Manchester}
+\end{center}
+
+\tableofcontents
+\newpage
+
+\section*{\Huge List of Tables}
+\addcontentsline{toc}{section}{List of Tables}
+\newpage
+% \listoftables
+
+\section*{\Huge List of Figures}
+\addcontentsline{toc}{section}{List of Figures}
+% \listoffigures
+
+\newpage
+
+% Abstract
+\section*{\Huge Abstract}
+\addcontentsline{toc}{section}{Abstract}
+\begin{spacing}{1.3}
+% Abstract text here
+In the context of ice hockey, a sport known for its speed and complexity, the need for advanced player-tracking systems is particularly pronounced. This project introduces a comprehensive system designed to track ice hockey players in professional match videos with unprecedented accuracy and efficiency, leveraging the YOLO object detection framework and Deep SORT algorithm to accurately identify and follow players, and clustering techniques to distinguish teams and referees. It represents a significant leap in sports analytics, offering precise player detection and tracking, team classification, and a bird's-eye view transformation of the ice rink for advanced strategic analysis. Evaluated across key metrics, the system achieved an impressive player and referee detection mean Average Precision (mAP) of 96\% and facilitated groundbreaking insights into player positioning and team tactics through its bird's-eye view feature. This advancement underscores the transformative potential of integrating machine learning and computer vision in sports analytics, providing a powerful tool for performance analysis and showcasing a notable contribution to the strategic understanding of professional ice hockey.
+\end{spacing}
+\newpage
+
+% Declaration
+% \section*{\Huge Declaration}
+% \addcontentsline{toc}{section}{Declaration}
+% Declaration text here
+% \newpage
+
+% Acknowledgements
+% \section*{\Huge Acknowledgements}
+% \addcontentsline{toc}{section}{Acknowledgements}
+% Acknowledgements text here
+% \newpage
+
+\section{Introduction}
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Context and Motivation}
+\begin{spacing}{1.3}
+The emergence of advanced analytics in sports, leveraging machine learning and computer vision, has revolutionized how games are analyzed and understood. Specifically, ice hockey, with its fast-paced and intricate team dynamics, presents a unique set of challenges and opportunities for technological innovation. This project lies at the intersection of these technological advancements and the growing demand for in-depth sports analytics.
+
+The primary motivation for this investigation stems from the inherent limitations of traditional player tracking methods in ice hockey, which are mainly manual, tedious, and not sufficiently robust to capture the complex, high-speed movements that are typical of the sport. These traditional methods often yield data that lacks the depth and precision necessary for a comprehensive analysis of player performance and team strategies.
+
+% In response to these challenges, recent studies have explored the potential of machine learning and computer vision to provide more detailed and accurate tracking of player movements. For instance, the work by [Author et al., Year] demonstrated the application of the YOLO (You Only Look Once) object detection model and Deep SORT tracking algorithm in real-time player tracking across various sports. However, the unique context of ice hockey, with its rapid changes in player positions and frequent occlusions, calls for a specialized approach that can reliably distinguish between players, referees, and the puck, while also adapting to the sport's fast-paced nature.
+
+This project aims to develop a comprehensive system tailored to the specific demands of ice hockey, including advanced object detection, player tracking, and team classification methodologies. Consequently, the goal is to address the essential requirement for accurate and automated tracking in professional ice hockey games, offering teams and coaches valuable insights to guide strategic choices and improve overall team performance.
+
+Furthermore, the project recognizes the growing interest in sports analytics for performance optimization and enhancing fan engagement and viewership experiences. By facilitating a more detailed analysis of game dynamics, player tracking systems contribute to more engaging and immersive viewing experiences, potentially transforming how fans engage with the sport.
+
+In summary, this project is motivated by the intersection of technical challenges, the potential for significant contributions to sports analytics in ice hockey, and the broader implications for team performance and fan engagement. Through the investigation grounded in the latest research and technological innovations, it aims to push the boundaries of what is possible in sports analytics and player tracking.
+\end{spacing}
+}
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Aims and Objectives}
+The project aims to develop a comprehensive system for tracking ice hockey players and referees in professional match videos with high accuracy and efficiency. The objectives include:
+
+1. Implementing an advanced object detection model to accurately identify players and referees.
+
+2. Utilizing a robust tracking algorithm to maintain consistent player identities across video frames.
+
+3. Differentiating between opposing teams using clustering techniques.
+
+4. Mapping player positions from video frames to a 2D rink model for strategic analysis.
+
+5. Generating heat maps to visualize player movements and game dynamics.
+
+6. Evaluating the system's performance across various metrics, including detection accuracy, tracking consistency, and computational efficiency.
+}
+
+{
+\setlength{\parskip}{0.3cm} % Adjust the vertical space between paragraphs as needed
+\subsection{Report Structure}
+The report is structured into six chapters to systematically cover every aspect of the project:
+
+\begin{itemize}
+    \item Chapter 1: Introduces the project, outlining the context, motivation, aims, and objectives.
+    
+    \item Chapter 2: Reviews relevant literature and technologies that underpin the methodologies applied in this project, providing a foundation for the approaches chosen.
+    
+    \item Chapter 3: Details the methodology and implementation process, including planning, data collection and annotation, detection and tracking of players and referees, team classification, bird’s-eye view transformation, and heatmap generation.
+    
+    \item Chapter 4: Focuses on the evaluation of the system, discussing the preparation of datasets, detection and tracking accuracy, parameter optimization, and overall system performance.
+    
+    \item Chapter 5: Discusses the project's achievements, reflecting on the challenges faced, insights gained, and potential areas for further research. Additionally, concludes the report, summarizing the key outcomes and proposing directions for future work on the topic.
+\end{itemize}
+}
+\newpage
+
+\section{Background}
+
+\subsection{Subsection Example}
+\newpage
+
+\section{Methodology and Implementation}
+
+\subsection{Planning}
+\subsection{Data Collection and Annotation}
+\subsubsection{Player and Referee Data}
+\subsubsection{Ice Hockey Field Data}
+\subsection{Player and Referee Detection}
+\subsection{Ice Hockey Field Data Detection}
+\subsubsection{\textbf{CHANGE}: Point Generatoin}
+\subsubsection{\textbf{CHANGE}: Point Detection}
+\subsection{Player and Referee Tracking}
+\subsection{Team Classification}
+\subsection{Bird’s-Eye View}
+\subsection{Heatmap}
+\subsection{System Design and Implementation}
+\subsection{Python}
+\newpage
+
+\section{Evaluation}
+
+\subsection{Data Preperation}
+\subsection{Player and Referee Detection}
+\subsubsection{\textbf{CHANGE}: Hyperparameter Tuning}
+\subsubsection{\textbf{CHANGE}: \textbf{CHANGE}: Optimisation of Detection Parameters}
+\subsection{\textbf{CHANGE}: Field Point Detection}
+\subsubsection{\textbf{CHANGE}: Hyperparameter Tuning}
+\subsubsection{\textbf{CHANGE}: Optimisation of Detection Parameters}
+\subsection{Player and Referee Tracking}
+\subsection{Team Classification}
+\newpage
+
+\section{Conclusion and Reflections}
+
+\subsection{Achievements}
+\subsection{Self Reflection}
+\subsection{Future Work}
+\subsubsection{1}
+\subsubsection{2}
+\subsubsection{3}
+\subsection{Conclusion}
+\newpage
+
+
+\addcontentsline{toc}{section}{References}
+
+\end{document}
