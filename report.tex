@@ -178,6 +178,34 @@ By leveraging CNNs and advanced algorithms like YOLO, player detection systems c
 
 \subsubsection{Support Vector Machines (SVMs) for Player Classification}
 
+Support Vector Machines (SVMs) serve as a robust tool for classification tasks within the domain of machine learning, excelling for tasks such as differentiating between player types or identifying referees among players in the context of sports analytics. SVM is a supervised learning model renowned for its application in both classification and regression challenges.
+
+The fundamental operation of an SVM Figure~\ref{fig:SVM} involves constructing a hyperplane in a high-dimensional space. The goal is to find the hyperplane that best divides the dataset into classes, which is particularly advantageous for binary classification tasks. The decision to designate a hyperplane as "the best" hinges on its ability to offer the largest margin between the two classes it separates. This margin is the distance between the hyperplane and the nearest data point from either class, known as a support vector.
+
+The steps to achieve this are as follows:
+
+\begin{itemize}
+    \item \textbf{Transformation into High-Dimensional Space}: In scenarios where the data is not linearly separable in its original space, SVM employs a technique called the kernel trick. This approach transforms the input data space into a higher-dimensional space where a linear separation is feasible without explicitly computing the coordinates in this new space, thus preserving computational efficiency.
+
+    \item \textbf{Optimization of the Hyperplane}: The SVM algorithm seeks to maximize the margin between the classes by adjusting the orientation and position of the hyperplane. This process involves solving an optimization problem that determines the hyperplane parameters minimizing classification errors while maximizing the margin.
+
+    \item \textbf{Support Vectors Identification}: The data points that are closest to the hyperplane and directly influence its position and orientation are identified as support vectors. These points are critical since their removal or alteration would change the hyperplane's construction.
+
+    \item \textbf{Classification Decision}: Once the optimal hyperplane is established, SVM can classify new data points based on which side of the hyperplane they fall on. For binary classification, this involves assigning a class label based on the sign of the decision function, which is a measure of the distance of a data point from the hyperplane.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\linewidth]{SVM.png}
+\captionsetup{font=large}
+\caption{Support Vector Machine}
+\label{fig:SVM}
+\end{figure}
+
+In the realm of sports analytics, particularly in the context of tracking players in videos, SVMs play a crucial role in classifying detected objects post their detection. Features such as HSV histograms, extracted from the bounding boxes around detected players serve as inputs to the SVM. Based on these features, the SVM classifies each object as either a player, a referee, or an irrelevant object. This classification step is instrumental in refining the detection accuracy by filtering out objects that do not pertain to the game's context.
+
+In essence, SVMs complement the object detection capabilities of CNNs by providing a reliable method for the subsequent classification of detected objects. This synergy between CNNs and SVMs empowers the development of sophisticated player tracking systems, driving forward the analytics in sports through detailed game dynamics and player performance insights.
+
 \end{spacing}
 }
 
