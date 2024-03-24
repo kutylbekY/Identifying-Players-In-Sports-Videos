@@ -11,6 +11,7 @@
 \usepackage{tocloft}
 \usepackage{setspace}
 \usepackage{hyperref}
+\usepackage{amsmath}
 % \addbibresource{}
 
 \setlength{\parskip}{2em}
@@ -39,8 +40,8 @@
 \tableofcontents
 \newpage
 
-% \section*{\Huge List of Tables}
-% \addcontentsline{toc}{section}{List of Tables}
+\hypertarget{listoftables}{}
+\addcontentsline{toc}{section}{\protect\hyperlink{listoftables}{List of Tables}} 
 \listoftables
 \newpage
 
@@ -211,8 +212,93 @@ In essence, SVMs complement the object detection capabilities of CNNs by providi
 
 {
 \setlength{\parskip}{0.3cm}
-\subsection{Player Detection Technologies}
+\subsection{Player Detection}
 \begin{spacing}{1.2}
+
+In the evolving landscape of sports analytics, especially in player detection within sports videos, the You Only Look Once (YOLO) algorithm has emerged as a game-changer. YOLO is an object detection system that differs fundamentally from the detection systems that came before it. Unlike systems that apply the detection model to various regions of the image, YOLO frames object detection as a single regression problem, directly from image pixels to bounding box coordinates and class probabilities. This approach allows YOLO to achieve remarkable speed and accuracy, making it ideal for player detection in sports analytics.
+
+\subsubsection{Understanding YOLO's Mechanism}
+YOLO divides the input image into a grid (e.g., 13x13). For each grid cell, it predicts multiple bounding boxes and confidence scores for those boxes. The confidence score reflects the accuracy of the bounding box and the probability that the box contains a specific object. Alongside, YOLO predicts class probabilities for each bounding box. The combination of the bounding box confidence score and the class prediction determines the final probability that a box contains a specific type of object, such as a player.
+
+\subsubsection{Grid Division and Bounding Box Prediction}
+
+The YOLO framework begins by dividing the input image into an $S \times S$ grid. Each grid cell predicts bounding boxes and their associated properties as shown in Figure~\ref{fig:GridPred}:
+
+\begin{itemize}
+    \item The center of the bounding box $(b_x, b_y)$, relative to the bounds of the grid cell.
+    \item The width $(b_w)$ and height $(b_h)$ of the bounding box, relative to the entire image.
+    \item A confidence score that signifies the box's accuracy and the likelihood that it contains an object.
+\end{itemize}
+
+The formulas for the bounding box predictions are as follows:
+\begin{align*}
+    b_x &= \sigma(t_x) + c_x \\
+    b_y &= \sigma(t_y) + c_y \\
+    b_w &= p_w e^{t_w} \\
+    b_h &= p_h e^{t_h} \\
+    \text{Confidence} &= \sigma(t_o)
+\end{align*}
+
+where:
+\begin{itemize}
+    \item $\sigma$ represents the sigmoid function, ensuring outputs between 0 and 1.
+    \item $t_x, t_y, t_w, t_h$ are the model's predictions
+    \item $c_x, c_y$ represent the top-left corner of the grid cell
+    \item $p_w$ and $p_h$ are predefined dimensions of the bounding boxes.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\linewidth]{GridPred.png}
+\captionsetup{font=large}
+\caption{Grid Division and Bounding Box Prediction}
+\label{fig:GridPred}
+\end{figure}
+
+
+\subsubsection{Class Probability Prediction}
+
+For each grid cell, YOLO predicts conditional class probabilities $Pr(Class_i | Object)$ for $C$ classes, using the formula:
+\begin{equation*}
+    Pr(Class_i | Object) = \sigma(t_{i})
+\end{equation*}
+where $t_{i}$ is the predicted probability for class $i$.
+
+This prediction is independent of the bounding boxes, assuming every box has the same class distribution.
+
+
+\subsubsection{Non-max Suppression}
+After predicting bounding boxes and class probabilities, non-max suppression (NMS) is applied to reduce overlapping boxes, keeping only the box with the highest confidence score while removing others that predict the same object. This step is crucial for reducing the number of false positives as shown in Figure~\ref{fig:NMS}. NMS steps:
+\begin{enumerate}
+    \item Sort all bounding boxes by their confidence scores in descending order.
+    \item Keep the highest confidence box and remove others with an IOU greater than a certain threshold.
+    \item Repeat step 2 for the remaining boxes.
+\end{enumerate}
+
+The Intersection Over Union (IOU) metric plays a central role in this process by quantifying the overlap between bounding boxes, enabling the algorithm to determine which boxes to keep and which to discard. IOU is a measure used to evaluate the similarity between two bounding boxes. It is defined as the ratio of the area of overlap between the two bounding boxes to the area of their union. Mathematically, it can be expressed as:
+\begin{equation*}
+    IOU = \frac{Area\: of\: Overlap}{Area\: of\: Union}
+\end{equation*}
+
+The value of IOU ranges from 0 to 1, where 0 indicates no overlap and 1 represents perfect overlap. In the context of non-max suppression, IOU is used to compare each pair of bounding boxes that detect the same object.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\linewidth]{NMS.png}
+\captionsetup{font=large}
+\caption{Non-max Suppression}
+\label{fig:NMS}
+\end{figure}
+
+
+\subsubsection{Combining Predictions}
+Finally, YOLO combines the bounding box predictions with the class probability predictions:
+\begin{equation*}
+    Score_{class_i} = Pr(Object) \times IOU_{pred}^{truth} \times Pr(Class_i | Object)
+\end{equation*}
+
+This approach enables YOLO to efficiently detect objects, including player detection in sports analytics.
+
 \end{spacing}
 }
 
