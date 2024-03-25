@@ -32,7 +32,7 @@
     \large{A report submitted as part of the Third Year Project for} \\[3pt]
     \large{the degree of BSc (Hons) Artificial Intelligence}
     \centering
-    \includegraphics[width=0.6\textwidth]{uom_logo.png} \\
+    \includegraphics[width=0.6\textwidth]{images/uom_logo.png} \\
     \large{School of Computer Science} \\[5pt]
     \large{The University of Manchester}
 \end{center}
@@ -165,7 +165,7 @@ A CNN is composed of several layers that process and transform the input image t
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{CNN.png}
+\includegraphics[width=\linewidth]{images/CNN.png}
 \captionsetup{font=large}
 \caption{Convolutional Neural Network}
 \label{fig:cnn}
@@ -197,7 +197,7 @@ The steps to achieve this are as follows:
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\linewidth]{SVM.png}
+\includegraphics[width=0.8\linewidth]{images/SVM.png}
 \captionsetup{font=large}
 \caption{Support Vector Machine}
 \label{fig:SVM}
@@ -249,7 +249,7 @@ where:
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\linewidth]{GridPred.png}
+\includegraphics[width=0.8\linewidth]{images/GridPred.png}
 \captionsetup{font=large}
 \caption{Grid Division and Bounding Box Prediction}
 \label{fig:GridPred}
@@ -284,7 +284,7 @@ The value of IOU ranges from 0 to 1, where 0 indicates no overlap and 1 represen
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\linewidth]{NMS.png}
+\includegraphics[width=0.8\linewidth]{images/NMS.png}
 \captionsetup{font=large}
 \caption{Non-max Suppression}
 \label{fig:NMS}
@@ -302,7 +302,111 @@ This approach enables YOLO to efficiently detect objects, including player detec
 \end{spacing}
 }
 
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Color-based Team Classification using HSV Histograms and K-means Clustering}
+\begin{spacing}{1.2}
+
+The identification of players in sports analytics, particularly in dynamic and fast-paced environments like ice hockey, is crucial for player tracking, performance analysis, and tactical assessment. Distinguishing between two teams and referees through their jerseys is a common approach. This section explores the technical details leveraging the HSV color space and K-means clustering to achieve robust team classification against the challenges posed by variable lighting and diverse camera angles.
+
+\subsubsection{HSV Histograms for Color Feature Extraction}
+
+HSV color space offers a more intuitive arrangement of colors as shown in Figure~\ref{fig:HSV}, making it easier to handle variations in lighting when processing video frames. HSV separates the color (hue) from the brightness (value), which is particularly useful in sports analytics where lighting can significantly vary. It consists of:
+\begin{itemize}
+    \item \textbf{Hue (H):} The color type, represented as an angle from 0 to 360 degrees. Normalized to 0 to 1 (or 0 to 255).
+    \item \textbf{Saturation (S):} The intensity of the color, from pure (100\%) to grayscale (0\%).
+    \item \textbf{Value (V):} The brightness of the color, where 0 is black, and 100\% shows the most color.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\linewidth]{images/HSV.jpeg}
+\captionsetup{font=large}
+\caption{HSV colour space}
+\label{fig:HSV}
+\end{figure}
+
+A histogram for each HSV channel is computed for the player's jersey within a bounding box. The histograms are normalized to ensure consistency across different sizes of Region of Interest (ROI). The histograms are normalized as:
+\[ H(i) = \frac{n_i}{N} \]
+where \(n_i\) is the number of pixels in the $i^{th}$ bin, and \(N\) is the total number of pixels. 
+
+This normalization process results in a feature vector for each channel, which, when concatenated, forms a comprehensive color feature vector for the ROI.
+
+\subsubsection{Gaussian Blur}
+
+Gaussian blur is utilized to preprocess the jersey's Region of Interest (ROI) by reducing noise, enabling a more accurate color histogram computation as shown in Figure~\ref{fig:GausianBlur}. The Gaussian function applied to each pixel \textit{x} in the image is given by:
+\[ G(x) = \frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{x^2}{2\sigma^2}} \]
+where \(\sigma\) is the standard deviation of the Gaussian distribution. 
+
+This function smoothens color transitions and minimizes outliers as shown in Figure~\ref{fig:GausianBlur}, which might skew the histogram representation.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\linewidth]{images/GausianBlur.png}
+\captionsetup{font=large}
+\caption{Gausian Blur Effect}
+\label{fig:GausianBlur}
+\end{figure}
+
+\subsubsection{Jersey ROI}
+% A central portion, typically 50\% of the bounding box, is considered to ensure the histogram captures the dominant jersey color.
+
+The Region of Interest (ROI) for each player's jersey is defined by zooming into the central part of the bounding box detected around a player as represented in Figure~\ref{fig:JerseyROI}. This is based on the most distinct and consistent color of a player’s team is on the jersey. To ensure the histogram focuses on this part, a fixed percentage (e.g., 50\%) reduction from the original bounding box dimensions centers the ROI on the jersey.
+
+\subsubsection{Feature Vectors from HSV Histograms}
+
+The feature vector for the jersey's color distribution is constructed by concatenating the normalized histograms of the H, S, and V channels. Given bins \textit{b} for each histogram, the feature vector \textit{F} can be represented as:
+\[ F = [H_1, H_2, ..., H_b, S_1, S_2, ..., S_b, V_1, V_2, ..., V_b] \]
+This vector is crucial, serving as the input for the subsequent K-means clustering for team classification.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.25\linewidth]{images/JerseyROI.jpeg}
+\captionsetup{font=large}
+\caption{Jersey Region of Interest}
+\label{fig:JerseyROI}
+\end{figure}
+
+\subsubsection{K-means Clustering for Team Classification}
+
+K-means clustering aims to partition \textit{n} observations into \textit{k} clusters in which each observation belongs to the cluster with the nearest mean as represented in Figure~\ref{fig:KmeansCluster}. K-means clustering partitions players into teams based on the similarity of their jersey colors. The
+clustering process works as follows:
+
+\begin{enumerate}
+    \item Initialization - select \(k\) cluster centroids randomly from the dataset, denoted as \(\mu_1, \mu_2, ..., \mu_k\) where \(k\) is the predefined number of clusters.
+    \item Assignment Step - assign each data point \(x_i\) to the nearest cluster by calculating the Euclidean distance to each centroid and selecting the smallest. The assignment \(C(i)\) for each point \(x_i\) is given by:
+    \[ C(i) = \arg\min_{k} \|\|x_i - \mu_k\|\|_2^2 \]
+    \item Update Step - after all points have been assigned to clusters, update the centroids of the clusters to be the mean of the points assigned to each cluster. The updated position of centroid \(k\) is calculated as:
+    \[ \mu_k = \frac{1}{|C_k|} \sum_{i \in C_k} x_i \]
+    where \(C_k\) is the set of points assigned to cluster \(k\).
+    \item Iteration - repeat the assignment and update steps iteratively until the centroids no longer change significantly, or a predefined number of iterations is reached. This implies convergence to a solution.
+\end{enumerate}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\linewidth]{images/KmeansCluster.png}
+\captionsetup{font=large}
+\caption{K-means Clustering}
+\label{fig:KmeansCluster}
+\end{figure}
+
+
+The objective is to minimize the within-cluster sum of squares (WCSS):
+\[ \text{Minimize} \sum_{i=1}^{k}\sum_{x \in C_i} ||x - \mu_i||^2 \]
+where \(C_i\) is the $i^{th}$ cluster, \(x\) is a feature vector, and \(\mu_i\) is the centroid of \(C_i\). 
+
+% Through iterative updates, the algorithm converges, classifying players into two distinct clusters representing the teams.
+
+The algorithm iterates between assigning observations to the nearest cluster centroid and updating the centroids based on the current cluster memberships until convergence.
+
+In the context of team classification, this method effectively groups players into clusters (teams) based on their jersey colors represented by the feature vectors. This automatic categorization facilitates further analysis such as tracking, performance metrics, and tactical assessments in sports video analytics.
+
+
+\end{spacing}
+}
+
+
 \subsection{Application of DeepSORT for Player Tracking}
 \subsection{Field Point Detection and Homography for 2D Rink Mapping}
 \subsection{Heatmap Generation for Strategic Analysis}
@@ -316,12 +420,13 @@ This approach enables YOLO to efficiently detect objects, including player detec
 \subsubsection{Player and Referee Data}
 \subsubsection{Ice Hockey Field Data}
 \subsection{Player and Referee Detection}
+\subsection{Team Classification}
+\subsection{Player and Referee Tracking}
 \subsection{Ice Hockey Field Data Detection}
 \subsubsection{\textbf{CHANGE}: Point Generatoin}
 \subsubsection{\textbf{CHANGE}: Point Detection}
-\subsection{Player and Referee Tracking}
-\subsection{Team Classification}
 \subsection{Bird’s-Eye View}
+\subsubsection{\textbf{CHANGE}: Homography matrix}
 \subsection{Heatmap}
 \subsection{System Design and Implementation}
 \subsection{Python}
