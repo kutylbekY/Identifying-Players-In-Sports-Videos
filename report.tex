@@ -407,7 +407,117 @@ In the context of team classification, this method effectively groups players in
 }
 
 
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Application of DeepSORT for Player Tracking}
+\begin{spacing}{1.2}
+
+DeepSORT (Simple Online and Realtime Tracking with a Deep Association Metric) builds upon the SORT (Simple Online and Realtime Tracking) algorithm, enhancing it with deep learning techniques to improve tracking accuracy, especially in challenging scenarios like occlusions and rapid movements. The technical core of DeepSORT includes feature extraction using deep learning, the Kalman filter for motion prediction, and the Hungarian algorithm for solving the assignment problem.
+
+
+\subsubsection{Feature Extraction Using Deep Learning}
+
+DeepSORT employs a convolutional neural network (CNN) to generate high-dimensional feature vectors for each detected player. These vectors are crucial for distinguishing players, especially when paths cross or occlude.
+
+\textbf{CNN Architecture:} Pre-trained models such as ResNet or Inception are used to extract a high-dimensional feature vector from each detected bounding box in the video frame.
+
+\textbf{Feature Vector:} A 128-dimensional feature vector is extracted for each player, capturing unique appearance aspects, aiding in their identification across frames.
+
+
+\subsubsection{Motion Prediction with Kalman Filter}
+
+The Kalman filter is used to predict player positions in subsequent frames based on their current state. It helps in maintaining tracking continuity even when detections may be temporarily lost or occluded.
+
+\textbf{State Space:} Represented as \([x, y, \dot{x}, \dot{y}, s, \dot{s}]\), where \(x, y\) are position coordinates, \(\dot{x}, \dot{y}\) are velocities, \(s\) is the scale of the detection box, and \(\dot{s}\) is the scale change.
+
+\textbf{Prediction and Update Equations:}
+
+\begin{itemize}
+    \item Prediction step estimates the next state based on current state and its estimated motion.
+    \begin{align}
+        \text{\textbf{State prediction}}: \hat{x}_{k|k-1} &= F_k \hat{x}_{k-1|k-1} + B_k u_k \\
+        \text{\textbf{Covariance prediction}}: P_{k|k-1} &= F_k P_{k-1|k-1} F_k^T + Q_k
+    \end{align}
+
+    Where \(x\) is the state vector, \(P\) the state covariance, \(F\) the state transition model, \(B\) the control-input model, \(u\) the control vector, \(Q\) the process noise covariance.
+    
+    \item Update step then adjusts the prediction based on the new measurement (detection).
+    \begin{align}
+        \text{\textbf{Kalman gain}}: K_k &= P_{k|k-1} H_k^T (H_k P_{k|k-1} H_k^T + R_k)^{-1} \\
+        \text{\textbf{State update}}: \hat{x}_{k|k} &= \hat{x}_{k|k-1} + K_k(z_k - H_k \hat{x}_{k|k-1}) \\
+        \text{\textbf{Covariance update}}: P_{k|k} &= (I - K_k H_k) P_{k|k-1}
+    \end{align}
+    
+    Where \(K\) the Kalman gain, \(H\) the observation model, and \(z\) the observation.
+\end{itemize}
+
+
+\subsubsection{Data Association with Hungarian Algorithm}
+
+% The Hungarian algorithm matches predicted positions with new detections, considering both spatial and appearance similarities.
+
+To match the predicted positions with new detections, DeepSORT uses the Hungarian algorithm, with the goal of minimizing the total cost, which incorporates both motion and appearance information. Hungarian algorithm is a combinatorial optimization algorithm that solves the assignment problem in polynomial time.
+
+\textbf{Cost Matrix:} Constructed based on the Mahalanobis distance between predicted and detected positions, incorporating the appearance features' cosine similarity to penalize mismatches in appearance. The cost matrix \(C\) is defined such that each element \(C_{ij}\) represents the cost of assigning the \(i^{th}\) prediction to the \(j^{th}\) detection. This cost is computed by combining the Mahalanobis distance and the cosine distance between appearance features, as follows:
+
+\[
+C_{ij} = \alpha \cdot D_{\text{Mahal}}(i, j) + (1 - \alpha) \cdot D_{\text{cos}}(f_i, f_j)
+\]
+
+where:
+\begin{itemize}
+    \item \(D_{\text{Mahal}}(i, j)\) is the Mahalanobis distance between the predicted state of track \(i\) and the detected state of object \(j\).
+    \item \(D_{\text{cos}}(f_i, f_j)\) is the cosine distance between the appearance feature vector \(f_i\) of track \(i\) and the feature vector \(f_j\) of detection \(j\).
+    \item \(\alpha\) is a weighting factor that balances the contribution of the motion and appearance measures.
+\end{itemize}
+
+% \textbf{Optimization:} The Hungarian algorithm is applied to the cost matrix to find the assignment that minimizes the total cost, ensuring each prediction matches exactly one detection, considering both spatial and appearance similarities. This results in an optimal matching between existing tracks and new detections.
+
+\textbf{Optimization:} The optimization of the cost matrix \(C\) to find the optimal assignment of predictions to detections is performed using the Hungarian algorithm. The goal is to minimize the total assignment cost. The optimization problem can be formalized as follows:
+
+\[
+\min \sum_{i=1}^{N} \sum_{j=1}^{M} C_{ij} x_{ij}
+\]
+
+subject to:
+\begin{align*}
+    \sum_{i=1}^{N} x_{ij} &= 1, \quad \forall j \in \{1, \ldots, M\}, \\
+    \sum_{j=1}^{M} x_{ij} &= 1, \quad \forall i \in \{1, \ldots, N\}, \\
+    x_{ij} &\in \{0, 1\},
+\end{align*}
+
+where:
+\begin{itemize}
+    \item \(N\) is the number of tracks (predictions).
+    \item \(M\) is the number of detections.
+    \item \(C_{ij}\) is the cost of assigning track \(i\) to detection \(j\).
+    \item \(x_{ij}\) is a binary variable indicating whether track \(i\) is assigned to detection \(j\) (\(1\) for assigned, \(0\) otherwise).
+\end{itemize}
+
+The Hungarian algorithm efficiently finds the assignment \(x_{ij}\) that minimizes the total cost.
+
+
+\subsubsection{Handling Occlusions and Identity Switches}
+
+DeepSORT's use of appearance features with motion information significantly improves robustness to occlusions and identity switches.
+
+\textbf{Occlusions:} The tracker relies more on the motion prediction when appearance information is unreliable due to occlusion. The stored appearance features of tracks help in re-identifying players once they are no longer occluded.
+
+\textbf{Identity Switches:} By comparing the appearance features of current detections to those of existing (historical) tracks, DeepSORT reduces the risk of identity switches, especially in scenes with close interactions among players.
+
+
+\subsubsection{Implementation Details}
+
+\begin{itemize}
+    \item \textbf{Frame-by-Frame Processing}: DeepSORT processes video frames in real-time, applying detection, feature extraction, and tracking sequentially on each frame.
+    \item \textbf{Thresholds and Parameters}: Parameters such as the detection confidence threshold, the maximum age of a tracker, and the minimum number of frames for a track to be confirmed are critical for tuning performance and accuracy.
+\end{itemize}
+
+
+\end{spacing}
+}
+
+
 \subsection{Field Point Detection and Homography for 2D Rink Mapping}
 \subsection{Heatmap Generation for Strategic Analysis}
 \subsection{Reference Framework and Peer-Reviewed Literature}
