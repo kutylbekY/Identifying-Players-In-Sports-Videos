@@ -130,6 +130,80 @@ The report is structured into six chapters to systematically cover every aspect 
 \newpage
 
 \section{Background}
+
+
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Relevant Work}
+\begin{spacing}{1.2}
+1. \textbf{Buric, M., Ivasic-Kos, M., \& Pobar, M. (2019).} "Player Tracking in Sports Videos."
+% This study addresses the challenges of tracking players in handball videos, where players frequently occlude each other and exhibit rapid, unpredictable movements. The authors explore the application of CNN-based object detectors, particularly focusing on YOLO, and evaluate three tracking-by-detection methods: the Hungarian assignment algorithm, SORT (Simple Online and Real-time Tracking), and Deep SORT for their effectiveness in this challenging environment. 
+This paper tackles the complex issue of tracking players in handball videos, where players frequently occlude each other and exhibit rapid, unpredictable movements. The authors explore the application of CNN-based object detectors, particularly focusing on YOLO, and evaluate three tracking-by-detection methods: the Hungarian assignment algorithm, SORT (Simple Online and Real-time Tracking), and Deep SORT for their effectiveness in this challenging environment. The evaluation on a custom dataset demonstrates the viability of these methods for sports player tracking 
+
+\href{https://consensus.app/papers/player-tracking-sports-videos-buric/c3cd64da157a5e589e69d84d95373adb/?utm_source=chatgpt}{(Buric et al., 2019)}.
+
+2. \textbf{Soomro, K., Khokhar, S., \& Shah, M. (2015).} "Tracking When the Camera Looks Away." 
+% This innovative study addresses the challenge of tracking players across temporally disjoint sequences of soccer videos, such as those with intermittent advertisements or camera view changes. By employing a graph-based optimization approach without using appearance cues, and instead leveraging team formations, the authors offer a novel solution for continuous player tracking. 
+This innovative study addresses the challenge of tracking players across temporally disjoint sequences of soccer videos, such as those with intermittent advertisements or camera view changes. By employing a graph-based optimization approach without using appearance cues, and instead leveraging team formations, the authors offer a novel solution for continuous player tracking. This method also facilitates tactical and statistical game analysis, presenting a significant advancement in sports video analysis technology
+
+\href{https://consensus.app/papers/tracking-when-camera-looks-away-soomro/d33a6a9f5abc50c6b99bbaaadee74e16/?utm_source=chatgpt}{(Soomro et al., 2015)}.
+
+3. \textbf{Manafifard, M., Ebadi, H., \& Moghaddam, H. (2017).} "A survey on player tracking in soccer videos." 
+% This survey presents a comprehensive overview of soccer player tracking technologies, categorizing and examining the strengths and weaknesses of various preprocessing and processing methods. 
+This survey presents a comprehensive overview of soccer player tracking technologies, categorizing and examining the strengths and weaknesses of various preprocessing and processing methods. The paper highlights the challenges posed by factors such as player occlusion and rapidly changing lighting conditions, offering insights into the state-of-the-art techniques and suggesting directions for future research in the domain of soccer video analysis
+
+\href{https://consensus.app/papers/survey-player-tracking-soccer-videos-manafifard/880b411648dc551d9e811bc99470c446/?utm_source=chatgpt}{(Manafifard et al., 2017)}.
+
+4. \textbf{Sudeep, K. M., Amarnath, V., Pamaar, A. R., De, K., Saini, R., \& Roy, P. P. (2018).} "Tracking Players in Broadcast Sports." 
+% This research delves into the use of deep learning networks for identifying and tracking players in sports videos, introducing an algorithm that incorporates Kalman filters for enhanced tracking performance. 
+This research delves into the use of deep learning networks for identifying and tracking players in sports videos, introducing an algorithm that incorporates Kalman filters for enhanced tracking performance. The study compares this new algorithm with traditional techniques like mean shift filters, showing promising results and paving the way for advanced sports analytics applications 
+
+\href{https://consensus.app/papers/tracking-players-broadcast-sports-sudeep/4fb846770e345219850e425f227cd66f/?utm_source=chatgpt}{(Sudeep et al., 2018)}.
+
+5. \textbf{Castro, R. L., Andrade, D., \& Fraguela, B. (2020).} "A Hybrid Approach for Tracking Individual Players in Broadcast Match Videos." 
+% This paper presents a fast and accurate player tracking solution for broadcasted sports events, integrating multiple models that operate concurrently. 
+This paper presents a fast and accurate player tracking solution for broadcasted sports events, integrating multiple models that operate concurrently. The solution is tested against manually labeled video sequences, demonstrating its capability to track players in real-time with high precision. This method stands out for its performance, processing high-definition videos at significant frame rates, a critical advancement for real-time sports analytics
+
+\href{https://consensus.app/papers/hybrid-approach-tracking-individual-players-broadcast-castro/16e287d81de75e84a0372988c3772674/?utm_source=chatgpt}{(Castro et al., 2020)}.
+
+6. \textbf{Jiang, X., Liu, Z., \& Wang, Y. (2016).} "Tracking Multiple Players in Beach Volleyball Videos." 
+% Focusing on beach volleyball, this paper adopts the tracking-by-detection framework using the Multiple Hypotheses Tracking (MHT) algorithm. 
+Focusing on beach volleyball, a sport with particularly complex player movements, this paper adopts the tracking-by-detection framework using the Multiple Hypotheses Tracking (MHT) algorithm. By incorporating motion information from the Kalman filter and training an online appearance model, the authors improve tracking efficiency, demonstrating the method's effectiveness with significant performance on custom datasets
+
+\href{https://consensus.app/papers/tracking-multiple-players-beach-volleyball-videos-jiang/c3d1612f3ef75e5e8a6f444a0e67e092/?utm_source=chatgpt}{(Jiang et al., 2016)}.
+
+7. \textbf{Martins, E., \& Brito, J. H. (2021).} "Soccer Player Tracking in Low Quality Video." 
+% A system is proposed for tracking multiple soccer players in low-quality video streams, demonstrating the system's robustness and high performance. 
+This study introduces a system capable of effectively tracking multiple soccer players in low-quality video streams. By adapting a state-of-the-art Multiple Object Tracking framework and creating detection and tracking datasets for various video qualities, the authors showcase the system's robustness and high performance, addressing a significant gap in sports video analysis for low-resolution footage
+
+\href{https://consensus.app/papers/soccer-player-tracking-quality-video-martins/52e9b286c14e5787acfbd18fc50042c4/?utm_source=chatgpt}{(Martins \& Brito, 2021)}.
+
+8. \textbf{Bastanfard, A., Jafari, S., \& Amirkhani, D. (2019).} "Improving Tracking Soccer Players in Shaded Playfield Video." 
+% Addressing the challenge of tracking players in shaded playfields, this paper proposes an algorithm for player identification and tracking. 
+This paper proposes an algorithm for tracking soccer players in videos with challenging lighting conditions, such as shaded playfields. By employing saliency maps for playfield identification and combining color, brightness, and edge features for player detection, the authors achieve high accuracy in player tracking. This approach significantly reduces the impact of lighting variations on tracking performance, offering valuable insights for analyzing outdoor sports videos
+
+\href{https://consensus.app/papers/improving-tracking-soccer-players-shaded-playfield-video-bastanfard/e5e9097c3d335d8da4803d4ec8711727/?utm_source=chatgpt}{(Bastanfard et al., 2019)}.
+
+9. \textbf{Ibraheem, O., Irwansyah, A., Hagemeyer, J., Porrmann, M., \& Rückert, U. (2017).} "Reconfigurable vision processing system for player tracking in indoor sports." 
+% The authors present a reconfigurable system that uses FPGA technology to accelerate the player tracking process in indoor sports. 
+The authors present a reconfigurable system that uses FPGA technology to accelerate the player tracking process in indoor sports, processing live and recorded video data from multiple cameras. The system's player detection and tracking capabilities achieve high accuracy and efficiency, demonstrating a significant advancement in real-time sports analytics
+
+\href{https://consensus.app/papers/vision-processing-system-player-tracking-sports-ibraheem/752c4500b471561bb821a1ec1debfac2/?utm_source=chatgpt}{(Ibraheem et al., 2017)}.
+
+10. \textbf{Sverrisson, S., Grancharov, V., \& Pobloth, H. (2019).} "Real-Time Tracking-by-Detection in Broadcast Sports Videos." 
+% This research introduces a novel real-time tracking-by-detection algorithm tailored for sports videos. 
+This research introduces a novel real-time tracking-by-detection algorithm tailored for sports videos, combining an optimized Convolutional Neural Network architecture with a unique Inter Frame Connection logic. This approach enhances data association and stabilizes detection performance, outperforming existing tracking models and offering significant improvements for real-time player tracking applications 
+
+\href{https://consensus.app/papers/realtime-trackingbydetection-broadcast-sports-videos-sverrisson/e07927d4fb4e5c338adf4b97696c541a/?utm_source=chatgpt}{(Sverrisson et al., 2019)}.
+
+
+\end{spacing}
+}
+
+
+
+
 {
 \setlength{\parskip}{0.3cm}
 \subsection{Machine Learning in Sports Analytics}
@@ -370,8 +444,7 @@ This vector is crucial, serving as the input for the subsequent K-means clusteri
 
 \subsubsection{K-means Clustering for Team Classification}
 
-K-means clustering aims to partition \textit{n} observations into \textit{k} clusters in which each observation belongs to the cluster with the nearest mean as represented in Figure~\ref{fig:KmeansCluster}. K-means clustering partitions players into teams based on the similarity of their jersey colors. The
-clustering process works as follows:
+K-means clustering aims to partition \textit{n} observations into \textit{k} clusters in which each observation belongs to the cluster with the nearest mean as represented in Figure~\ref{fig:KmeansCluster}. K-means clustering partitions players into teams based on the similarity of their jersey colors. The clustering process works as follows:
 
 \begin{enumerate}
     \item Initialization - select \(k\) cluster centroids randomly from the dataset, denoted as \(\mu_1, \mu_2, ..., \mu_k\) where \(k\) is the predefined number of clusters.
@@ -518,10 +591,102 @@ DeepSORT's use of appearance features with motion information significantly impr
 }
 
 
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Field Point Detection and Homography for 2D Rink Mapping}
-\subsection{Heatmap Generation for Strategic Analysis}
-\subsection{Reference Framework and Peer-Reviewed Literature}
-\newpage
+\begin{spacing}{1.2}
+This section delves into the integration of Field Point Detection with YOLO for identifying points on the ice rink, followed by an exploration of generating the homography matrix and mapping these detections onto a 2D representation of the rink.
+
+
+\subsubsection{Integration of Field Point Detection with YOLO}
+YOLO is a cutting-edge object detection system that predicts bounding boxes and probabilities for each image grid cell. When trained on specific rink features alongside players, YOLO can effectively detect and distinguish between dynamic play elements and static field points.
+
+\paragraph{Training YOLO on Rink Features:}
+To adapt YOLO for field point detection in ice hockey, the model is trained on a dataset comprising images of the rink annotated with both player positions and specific rink features such as \textbf{CHANGE} goal lines, blue lines, and face-off dots. This training enables YOLO to recognize and distinguish between dynamic elements (players) and static field points.
+
+% Integrating field point detection with YOLO enables the simultaneous identification of players and critical rink markers. This dual detection capability is essential for accurately mapping player positions relative to key rink locations.
+
+% \paragraph{Detection and Distinguishability:}
+% Upon training, YOLO can simultaneously identify players and key rink features within video frames. This dual capability facilitates the accurate localization of players in relation to these static points, which is crucial for subsequent mapping and analysis.
+
+\paragraph{Spatial Analysis Enhancement:}
+Mapping player positions onto a 2D rink diagram using the homography matrix enables detailed spatial analysis. This process transforms detected positions from the video frame to the rink plane, facilitating strategy development and performance analysis. Utilizing the identified field points and player positions, spatial analyses such as player distribution, movement patterns, and team formations are significantly enhanced. These analyses are pivotal for developing game strategies and performance evaluation.
+
+
+\subsubsection{Homography for 2D Rink Mapping}
+Homography is a projective transformation that maps the points from one plane (the image plane) to another plane (the rink plane) using a \(3 \times 3\) matrix \(H\). This transformation is essential for converting the perspective view of a rink into a standardized 2D top-down view.
+
+\paragraph{Mathematical Representation of Homography:}
+The transformation of a point \((x, y)\) in the image plane to a point \((x', y')\) in the rink plane is governed by the equation:
+\begin{equation}
+    s \begin{bmatrix} x' \\ y' \\ 1 \end{bmatrix} = H \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+\end{equation}
+where \(s\) is a scalar ensuring the mapping is in homogeneous coordinates, allowing for translation, rotation, scaling, and perspective transformations.
+
+
+\paragraph{Calculation of the Homography Matrix \(H\):}
+The homography matrix \(H\) is computed using pairs of corresponding points from the image plane and the rink plane. A minimum of four point pairs is required to solve for \(H\), due to its eight degrees of freedom (the ninth parameter is the scale factor \(s\)). The Direct Linear Transformation (DLT) method and augmented by RANSAC for outlier rejection are typically employed to estimate \(H\) robustly.
+
+% The homography matrix \(H\) is calculated using pairs of corresponding points. 
+
+
+\subsubsection{Direct Linear Transformation (DLT):}
+DLT is a straightforward algorithm for estimating \(H\) given a set of point pairs. It involves setting up a linear system based on the correspondences and solving for the homography matrix. The process can be outlined as follows:
+\begin{enumerate}
+    \item For each pair of corresponding points, create two equations that express the homographic relationship.
+    \item Assemble these equations into a matrix form \(Ah = 0\), where \(A\) is a matrix constructed from the point coordinates, and \(h\) is the vectorized form of \(H\).
+    \item Solve for \(h\) using singular value decomposition (SVD) to minimize \(||Ah||\) under the constraint \(||h||=1\).
+\end{enumerate}
+
+For a robust solution, SVD is employed on the matrix \(A\) formulated from these point correspondences. The SVD of \(A\) can be expressed as:
+
+\begin{equation}
+    A = U \Sigma V^T
+\end{equation}
+
+where \(U\) and \(V\) are orthogonal matrices, and \(\Sigma\) is a diagonal matrix containing the singular values of \(A\). The solution for \(h\), which is the vectorized form of \(H\), corresponds to the column of \(V\) associated with the smallest singular value in \(\Sigma\). This column effectively minimizes the equation \(Ah = 0\) under the constraint \(||h|| = 1\), leading to the estimation of \(H\).
+
+
+\subsubsection{Robust Estimation with RANSAC:}
+% Given the susceptibility of DLT to outliers (incorrect point correspondences), RANSAC is employed to robustly estimate \(H\). RANSAC iteratively selects a random subset of point pairs, estimates \(H\) using DLT, and then evaluates the quality of \(H\) by counting the number of inliers that fit the model well within a predefined error threshold. The \(H\) with the highest number of inliers is chosen as the final homography matrix.
+
+The RANSAC algorithm enhances the robustness of homography estimation by iteratively selecting subsets of point pairs to compute \(H\), thereby mitigating the effect of outliers. The steps involved in RANSAC include:
+
+\begin{enumerate}
+    \item Randomly select a minimum set of point pairs necessary to compute \(H\).
+    \item Estimate \(H\) using the selected points and DLT.
+    \item Determine the inliers that fit well with the estimated \(H\) based on a predefined distance threshold.
+    \item Repeat steps 1 to 3 for a predetermined number of iterations, selecting the \(H\) with the maximum number of inliers.
+\end{enumerate}
+
+This iterative process ensures the selection of the most reliable point pairs, significantly reducing the influence of incorrect correspondences and leading to a more accurate estimation of the homography matrix.
+
+By applying DLT augmented with SVD for precision and employing RANSAC for outlier resistance, we achieve a highly reliable computation of \(H\), enabling accurate mapping of objects from the video frame to the 2D rink model. This methodology forms the backbone of spatial analysis in ice hockey, facilitating advanced strategy development and performance assessment.
+
+% By integrating field point detection with YOLO and employing sophisticated techniques for homography computation, we can achieve precise mapping of player positions and field features onto a 2D rink representation, facilitating advanced spatial analyses for ice hockey analytics.
+
+% \subsubsection{Conclusion}
+% The integration of YOLO with field point detection, combined with sophisticated homography estimation techniques, offers a comprehensive framework for advanced sports analytics in ice hockey. This approach enhances the precision of player and feature tracking, enabling deeper analytical insights.
+
+\end{spacing}
+}
+
+
+
+
+% {
+% \setlength{\parskip}{0.3cm}
+% \subsection{Heatmap Generation for Strategic Analysis}
+% \begin{spacing}{1.2}
+
+% Heatmaps are powerful tools for visualizing the frequency or intensity of player positions and movements across the rink, offering insights into team strategies, player behaviors, and game dynamics. This section will cover the technical details, algorithms, and relevant formulas used in the process, supported by suitable background material and references
+
+
+% \end{spacing}
+% }
+
+
 
 \section{Methodology and Implementation}
 
