@@ -686,26 +686,118 @@ By applying DLT augmented with SVD for precision and employing RANSAC for outlie
 % \end{spacing}
 % }
 
-
+% ########################## Methodology and Implementation ###############################
 
 \section{Methodology and Implementation}
 
-\subsection{Planning}
-\subsection{Data Collection and Annotation}
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Overview}
+\begin{spacing}{1.2}
+
+The following sections delineate the comprehensive plan and methodologies employed to construct a sophisticated system for tracking ice hockey players and referees in professional matches. This plan is meticulously designed to address the challenges unique to ice hockey tracking, leveraging advanced machine learning and computer vision techniques
+
+\begin{enumerate}
+    \item \textbf{Data Collection and Preprocessing} - gathering and preparing the necessary video data for analysis. It splits into two subsections, focusing on the extraction and annotation of player and referee data, and the calibration of ice hockey field points for spatial analysis. This step ensures the data quality and relevance for training the detection models and establishing a basis for accurate spatial tracking
+    \item \textbf{Player and Referee Detection} - deployment of YOLO (You Only Look Once) for object detection, crucial for identifying players and referees within the video frames. The methodology behind training the model on the preprocessed dataset is elaborated, highlighting how the model learns to differentiate between players, referees, and other entities.
+    \item \textbf{Team Classification}- after detection, the focus shifts to classifying players into their respective teams using clustering algorithms. Utilising feature extraction from player jerseys and the application of KMeans clustering for team classification based on color and pattern recognition
+    \item \textbf{Player and Referee Tracking }- incorporating the DeepSORT algorithm to track the movement of each detected player and referee across frames, ensuring continuity and accuracy in player identification throughout the game.
+    \item \textbf{Field Mapping and Point Generation} - converting the player positions from video coordinates to a 2D representation of the ice hockey field. Utilising mathematical models and algorithms used to achieve spatial consistency and accuracy
+    \item \textbf{Heatmap} - the culmination of the tracking and classification efforts are used to generate heatmaps. These heatmaps visually represent player movements and concentrations on the field, providing valuable insights into team strategies and player performance.
+    
+\end{enumerate}
+
+\end{spacing}
+}
+
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Technical Framework}
+\begin{spacing}{1.2}
+
+The technical backbone of the project for tracking ice hockey players and referees in professional matches is built upon a selection of tools and technologies chosen for their proven capabilities in handling high-complexity tasks in image processing, machine learning, and data analysis. This section outlines the rationale behind the chosen technical framework, highlighting how each component contributes to achieving the project's objectives.
+
+\begin{itemize}
+    \item \textbf{Programming Language - Python}: Python was chosen as the primary programming language due to its extensive support for data manipulation, machine learning, and computer vision libraries. Its readability and concise syntax allow for rapid development and prototyping, which is essential in a research-oriented project like this. Furthermore, Python's widespread adoption in the scientific computing community ensures a wealth of resources and libraries, facilitating access to cutting-edge algorithms and tools.
+    
+    \item \textbf{Computer Vision - OpenCV}: OpenCV stands as a cornerstone for the project's computer vision needs, providing a comprehensive suite of functions for image and video analysis. Its robustness and efficiency in performing tasks such as image transformations, object detection, and feature extraction are critical for processing the high-frame-rate videos typical in ice hockey matches. The decision to utilize OpenCV is also motivated by its seamless integration with Python, allowing for a streamlined workflow from image preprocessing to object detection.
+    
+    \item \textbf{Machine Learning and Deep Learning - PyTorch}: PyTorch is selected for its dynamic computation graph and exceptional support for deep learning models, particularly beneficial for implementing and training the YOLO object detection model. Its intuitive design and flexibility enable quick experimentation with neural network architectures, while its efficient memory usage and GPU acceleration capabilities ensure fast model training and inference. PyTorch's extensive ecosystem and community support further provide access to pre-trained models and libraries, accelerating the development process.
+    
+    \item \textbf{Object Detection Model - YOLO (You Only Look Once)}: The YOLO model is specifically chosen for its ability to achieve real-time object detection, a critical requirement for tracking players and referees in live or recorded video streams. YOLO's unique architecture allows it to predict multiple bounding boxes and class probabilities for those boxes simultaneously, making it exceptionally efficient and suitable for applications requiring fast processing times. This efficiency does not come at the cost of accuracy, as YOLO demonstrates high precision in detecting and distinguishing between different objects within a frame.
+    
+    \item \textbf{Tracking Algorithm - DeepSORT}: DeepSORT is integrated into the project to handle the tracking aspect, building upon the detections provided by YOLO. It was selected for its robustness in tracking objects across frames, even in scenarios where detections might be missed or occluded temporarily. DeepSORT's utilization of deep learning features for association metrics significantly improves the tracking consistency and accuracy, making it ideal for following the fast and erratic movements of players and referees throughout a game.
+\end{itemize}
+
+The combination of these technologies forms a powerful technical framework capable of addressing the project's challenges. Each component was chosen not only for its individual strengths but also for how it complements the others, ensuring a cohesive and efficient system for tracking ice hockey players and referees. This technical foundation is crucial for achieving the project's goal of providing accurate, real-time analytics that can enhance team strategies and fan engagement.
+
+\end{spacing}
+}
+
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Data Collection and Preprocessing}
+\begin{spacing}{1.2}
+
 \subsubsection{Player and Referee Data}
-\subsubsection{Ice Hockey Field Data}
+
+\subsubsection{Ice Hockey Field Point Data}
+
+\end{spacing}
+}
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Player and Referee Detection}
+\begin{spacing}{1.2}
+
+\end{spacing}
+}
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Team Classification}
+\begin{spacing}{1.2}
+
+\end{spacing}
+}
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Player and Referee Tracking}
-\subsection{Ice Hockey Field Data Detection}
+\begin{spacing}{1.2}
+
+\end{spacing}
+}
+
+{
+\setlength{\parskip}{0.3cm}
+\subsection{Field Mapping and Point Generation}
+\begin{spacing}{1.2}
+
 \subsubsection{\textbf{CHANGE}: Point Generatoin}
+
 \subsubsection{\textbf{CHANGE}: Point Detection}
-\subsection{Bird’s-Eye View}
-\subsubsection{\textbf{CHANGE}: Homography matrix}
+
+\end{spacing}
+}
+
+
+{
+\setlength{\parskip}{0.3cm}
 \subsection{Heatmap}
-\subsection{System Design and Implementation}
-\subsection{Python}
+\begin{spacing}{1.2}
+
+\end{spacing}
+}
+
+
 \newpage
+
+
+% ##################################### Evaluation #######################################
 
 \section{Evaluation}
 
@@ -719,6 +811,9 @@ By applying DLT augmented with SVD for precision and employing RANSAC for outlie
 \subsection{Player and Referee Tracking}
 \subsection{Team Classification}
 \newpage
+
+
+% ############################## Conclusion and Reflections ################################
 
 \section{Conclusion and Reflections}
 
