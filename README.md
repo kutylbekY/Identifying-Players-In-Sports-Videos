@@ -22,7 +22,7 @@ YOLO (You Only Look Once) is a deep learning algorithm for object detection that
 
 it is very fast and accurate, which makes it particularly suitable for applications like sports video analysis where quick and efficient processing is necessary.
 
-![YOLO](results/yolo_det.jpg)
+![Player Detection](results/yolo_det.jpg)
 
 
 # 3. Team Classification Using Clustering
@@ -36,7 +36,7 @@ The process consists of:
 2. K-means Clustering
 3. Cluster Initialization and Iteration
 
-![Team](results/team_class.jpg)
+![Team Classification](results/team_class.jpg)
 
 
 # 4. Player and Referee Tracking with Deep SORT
@@ -49,7 +49,7 @@ The process consists of:
 3. Tracking with Kalman Filter
 4. Data Association
 
-![Tracking](results/Tracking.jpg)
+![Tracking Players](results/Tracking.jpeg)
 
 
 # 5. 2D Rink Mapping Using Homography
@@ -66,7 +66,8 @@ Key Components of 2D Rink Mapping:
 4. Homography Matrix Computation
 5. Transformation Application
 
-![2D_map](results/2D_map.jpg)
+![Field Points Detection](results/Field.jpg)
+![Results](results/2D_map.jpg)
 
 
 # 6. Heatmap Generation
@@ -81,7 +82,7 @@ Heatmap Generation Process:
 4. Heatmap Visualization
 5. Heatmap Overlay
 
-![Heatmap](results/heatmap.jpg)
+![Heatmap](results/heatmap.png)
 
 
 # Future work
