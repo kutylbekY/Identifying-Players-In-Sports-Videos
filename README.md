@@ -1,2 +1,2 @@
 # Identifying-Players-In-Sports-Videos
-The University of Manchester - 3rd Year Project
+An endeavour to track sports players using advanced machine learning and computer vision techniques.
