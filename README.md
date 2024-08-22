@@ -13,7 +13,7 @@ By gathering and refining a large dataset of high-quality images, we ensure a di
 
 This enhances the model's ability to generalize across different game scenarios and ensures robust performance under varied lighting and dynamic conditions of an ice hockey match
 
-Total data instances accumulate to about 4550 images for both player and field point detections.
+Total data instances accumulate to about 5550 images for both player and field point detections.
 
 
 # 2. Player and Referee Detection with YOLO
